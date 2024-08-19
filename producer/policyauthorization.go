@@ -108,7 +108,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 				var ul, dl bool
 				qosData, ul, dl = updateQosInMedSubComp(smPolicy.PolicyDecision.QosDecs[qosID], medComp, medSubComp)
 				if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
-					logger.PolicyAuthorizationlog.Errorf(problemDetails.Detail)
+					logger.PolicyAuthorizationlog.Errorln(problemDetails.Detail)
 					return nil, problemDetails
 				}
 				smPolicy.PolicyDecision.QosDecs[qosData.QosId] = &qosData
@@ -195,7 +195,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 	var requestSuppFeat openapi.SupportedFeature
 	if tempRequestSuppFeat, err := openapi.NewSupportedFeature(ascReqData.SuppFeat); err != nil {
-		logger.PolicyAuthorizationlog.Errorf(err.Error())
+		logger.PolicyAuthorizationlog.Errorln(err.Error())
 	} else {
 		requestSuppFeat = tempRequestSuppFeat
 	}
