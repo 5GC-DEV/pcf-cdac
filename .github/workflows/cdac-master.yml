@@ -5,12 +5,13 @@
 name: Master workflow
 
 on:
-  pull_request:
-    branches:
-      - cdacmaster
-  push:
-    branches:
-      - cdacmaster
+    pull_request:
+      branches:
+        - cdacmaster
+    push:
+      branches:
+        - cdacmaster
+    workflow_dispatch:
 
 jobs:
 
