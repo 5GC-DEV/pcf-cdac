@@ -52,8 +52,10 @@ type clientRspMsg struct {
 	networkSliceRspMsg *protos.NetworkSliceResponse
 }
 
-var clientNFPool map[string]*clientNF
-var restartCounter uint32
+var (
+	clientNFPool   map[string]*clientNF
+	restartCounter uint32
+)
 
 type ServingPlmn struct {
 	Mcc int32 `json:"mcc,omitempty"`
@@ -245,7 +247,7 @@ func fillSite(siteInfoConf *configmodels.SliceSiteInfo, siteInfoProto *protos.Si
 	upf := &protos.UpfInfo{}
 	upf.UpfName = siteInfoConf.Upf["upf-name"].(string)
 	// TODO panic
-	//upf.UpfPort = siteInfoConf.Upf["upf-port"].(uint32)
+	// upf.UpfPort = siteInfoConf.Upf["upf-port"].(uint32)
 	siteInfoProto.Upf = upf
 }
 
@@ -311,7 +313,7 @@ func fillSlice(client *clientNF, sliceName string, sliceConf *configmodels.Slice
 	sliceProto.Site = site
 	fillSite(&sliceConf.SiteInfo, sliceProto.Site)
 
-	//Add Filtering rules
+	// Add Filtering rules
 	appFilters := protos.AppFilterRules{
 		PccRuleBase: make([]*protos.PccRule, 0),
 	}
@@ -319,13 +321,13 @@ func fillSlice(client *clientNF, sliceName string, sliceConf *configmodels.Slice
 		client.clientLog.Debugf("Received Rule config = %v ", ruleConfig)
 		pccRule := protos.PccRule{}
 
-		//RuleName
+		// RuleName
 		pccRule.RuleId = ruleConfig.RuleName
 
-		//Rule Precedence
+		// Rule Precedence
 		pccRule.Priority = ruleConfig.Priority
 
-		//Qos Info
+		// Qos Info
 		ruleQos := protos.PccRuleQos{}
 		ruleQos.MaxbrUl = ruleConfig.AppMbrUplink
 		ruleQos.MaxbrDl = ruleConfig.AppMbrDownlink
@@ -348,7 +350,7 @@ func fillSlice(client *clientNF, sliceName string, sliceConf *configmodels.Slice
 			arpi = 15
 		}
 
-		ruleQos.Var5Qi = int32(var5qi)
+		ruleQos.Var5Qi = var5qi
 		arp := &protos.PccArp{}
 		arp.PL = arpi
 		arp.PC = protos.PccArpPc(1)
@@ -356,8 +358,8 @@ func fillSlice(client *clientNF, sliceName string, sliceConf *configmodels.Slice
 		ruleQos.Arp = arp
 		pccRule.Qos = &ruleQos
 
-		//Flow Info
-		//As of now config provides us only single flow
+		// Flow Info
+		// As of now config provides us only single flow
 		pccRule.FlowInfos = make([]*protos.PccFlowInfo, 0)
 		var desc string
 		endp := ruleConfig.Endpoint
@@ -395,17 +397,17 @@ func fillSlice(client *clientNF, sliceName string, sliceConf *configmodels.Slice
 		}
 		pccRule.FlowInfos = append(pccRule.FlowInfos, &flowInfo)
 
-		//Add PCC rule to Rulebase
+		// Add PCC rule to Rulebase
 		appFilters.PccRuleBase = append(appFilters.PccRuleBase, &pccRule)
 	}
 	// AppFiltering rules not configured, so configuring default rule
 	if len(sliceConf.ApplicationFilteringRules) == 0 {
 		pccRule := protos.PccRule{}
-		//RuleName
+		// RuleName
 		pccRule.RuleId = "DefaultRule"
-		//Rule Precedence
+		// Rule Precedence
 		pccRule.Priority = 255
-		//Qos Info
+		// Qos Info
 		ruleQos := protos.PccRuleQos{}
 		ruleQos.Var5Qi = 9
 		arp := &protos.PccArp{}
@@ -425,7 +427,7 @@ func fillSlice(client *clientNF, sliceName string, sliceConf *configmodels.Slice
 		appFilters.PccRuleBase = append(appFilters.PccRuleBase, &pccRule)
 	}
 
-	//Add to Config to be pushed to client
+	// Add to Config to be pushed to client
 	if len(appFilters.PccRuleBase) > 0 {
 		sliceProto.AppFilters = &appFilters
 	}
@@ -445,13 +447,17 @@ func clientEventMachine(client *clientNF) {
 					httpend := client.ConfigCheckUrl
 					req, err := http.NewRequest(http.MethodPost, httpend, nil)
 					if err != nil {
-						client.clientLog.Infof("An Error Occured %v for channel %v \n", err, t)
+						client.clientLog.Infof("An Error Occurred %v for channel %v \n", err, t)
 					}
 					resp, err := c.Do(req)
 					if err != nil {
-						client.clientLog.Infof("An Error Occured %v\n", err)
+						client.clientLog.Infof("An Error Occurred %v\n", err)
 					} else {
-						if factory.WebUIConfig.Configuration.Mode5G == false && resp.StatusCode == http.StatusNotFound {
+						err = resp.Body.Close()
+						if err != nil {
+							client.clientLog.Infof("An Error Occurred %v\n", err)
+						}
+						if !factory.WebUIConfig.Configuration.Mode5G && resp.StatusCode == http.StatusNotFound {
 							client.clientLog.Infof("Config Check Message POST to %v. Status Code -  %v \n", client.id, resp.StatusCode)
 							if client.id == "hss" {
 								rwLock.RLock()
@@ -491,7 +497,7 @@ func clientEventMachine(client *clientNF) {
 			} else if configMsg.SliceName != "" && configMsg.MsgMethod == configmodels.Delete_op {
 				lastSlice = client.slicesConfigClient[configMsg.SliceName]
 				client.clientLog.Infof("Received delete configuration for Slice: %v ", configMsg.SliceName)
-				//checking whether the slice is exist or not
+				// checking whether the slice is exist or not
 				if lastSlice == nil {
 					client.clientLog.Warnf("Received non-exist slice: [%v] from Roc/Simapp", configMsg.SliceName)
 					continue
@@ -517,10 +523,10 @@ func clientEventMachine(client *clientNF) {
 				client.tempGrpcReq <- &reqMsg
 				client.clientLog.Infoln("sent data to client from push config ")
 			}
-			if factory.WebUIConfig.Configuration.Mode5G == false {
-				//push config to 4G network functions
+			if !factory.WebUIConfig.Configuration.Mode5G {
+				// push config to 4G network functions
 				if client.id == "hss" {
-					//client.clientLog.Debugf("Received configuration: %v", spew.Sdump(configMsg))
+					// client.clientLog.Debugf("Received configuration: %v", spew.Sdump(configMsg))
 					if configMsg.MsgType == configmodels.Sub_data && configMsg.MsgMethod == configmodels.Delete_op {
 						imsiVal := strings.ReplaceAll(configMsg.Imsi, "imsi-", "")
 						deleteConfigHss(client, imsiVal)
@@ -564,7 +570,7 @@ func clientEventMachine(client *clientNF) {
 			envMsg := &clientRspMsg{}
 			envMsg.networkSliceRspMsg = sliceDetails
 
-			if client.configChanged == false && cReqMsg.newClient == false {
+			if !client.configChanged && !cReqMsg.newClient {
 				client.clientLog.Infoln("No new update to be sent")
 				if client.resStream == nil {
 					cReqMsg.grpcRspMsg <- envMsg
@@ -586,13 +592,13 @@ func clientEventMachine(client *clientNF) {
 			client.clientLog.Infof("Send complete snapshoot to client. Number of Network Slices %v ", len(client.slicesConfigClient))
 			client.clientLog.Debugf("is client requested for metadata: %v ", client.metadataReqtd)
 
-			//currently pcf request for metadata
-			if (client.metadataReqtd) && (cReqMsg.newClient == false) {
+			// currently pcf request for metadata
+			if client.metadataReqtd && !cReqMsg.newClient {
 				sliceProto := &protos.NetworkSlice{}
 				prevSlice := cReqMsg.lastSlice
 				slice := cReqMsg.slice
 
-				//slice Added
+				// slice Added
 				if prevSlice == nil && slice != nil {
 					fillSlice(client, slice.SliceName, slice, sliceProto)
 					dgnames := getAddedGroupsList(slice, nil)
@@ -606,7 +612,7 @@ func clientEventMachine(client *clientNF) {
 				client.clientLog.Infof("PrevSlice Msg: %v", prevSlice)
 				client.clientLog.Infof("Slice Msg: %v", slice)
 
-				//slice updated
+				// slice updated
 				if prevSlice != nil && slice != nil {
 					client.clientLog.Infof("Slice: %v Updated", slice.SliceName)
 					fillSlice(client, slice.SliceName, slice, sliceProto)
@@ -633,7 +639,7 @@ func clientEventMachine(client *clientNF) {
 					//}
 					sliceDetails.NetworkSlice = append(sliceDetails.NetworkSlice, sliceProto)
 				}
-				//slice deleted
+				// slice deleted
 				if prevSlice != nil && slice == nil {
 					client.clientLog.Infof("Slice: %v Deleted", prevSlice.SliceName)
 					fillSlice(client, prevSlice.SliceName, prevSlice, sliceProto)
@@ -646,9 +652,9 @@ func clientEventMachine(client *clientNF) {
 					sliceDetails.NetworkSlice = append(sliceDetails.NetworkSlice, sliceProto)
 				}
 
-				//device add: Not Applicable
+				// device add: Not Applicable
 
-				//device group updated
+				// device group updated
 				if cReqMsg.devGroup != nil && cReqMsg.lastDevGroup != nil {
 					client.clientLog.Infof("PrevDevGroup Msg: %v", cReqMsg.lastDevGroup)
 					client.clientLog.Infof("DevGroup Msg: %v", cReqMsg.devGroup)
@@ -669,7 +675,7 @@ func clientEventMachine(client *clientNF) {
 						continue
 					}
 				}
-				//device group deleted
+				// device group deleted
 				if cReqMsg.devGroup == nil && cReqMsg.lastDevGroup != nil {
 					name := cReqMsg.lastDevGroup.DeviceGroupName
 					if ok, sliceName := isDeviceGroupInExistingSlices(client, name); ok {
@@ -693,7 +699,7 @@ func clientEventMachine(client *clientNF) {
 					}
 					sliceProto := &protos.NetworkSlice{}
 					result := fillSlice(client, sliceName, sliceConfig, sliceProto)
-					if result == true {
+					if result {
 						sliceDetails.NetworkSlice = append(sliceDetails.NetworkSlice, sliceProto)
 					} else {
 						client.clientLog.Infoln("Not sending slice config")
@@ -738,7 +744,7 @@ func postConfigMme(client *clientNF) {
 		siteInfo := sliceConfig.SiteInfo
 		client.clientLog.Infof("Slice %v, siteInfo.GNodeBs %v", sliceName, siteInfo.GNodeBs)
 
-		//keys.ServingPlmn.Tac = gnb.Tac
+		// keys.ServingPlmn.Tac = gnb.Tac
 		plmn := "mcc=" + siteInfo.Plmn.Mcc + ", mnc=" + siteInfo.Plmn.Mnc
 		var found bool
 		for _, p := range config.PlmnList {
@@ -763,20 +769,27 @@ func postConfigMme(client *clientNF) {
 	httpend := client.ConfigPushUrl
 	req, err := http.NewRequest(http.MethodPost, httpend, reqMsgBody)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := c.Do(req)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	} else {
+		err = resp.Body.Close()
+		if err != nil {
+			client.clientLog.Infof("An Error Occurred %v", err)
+		}
 		client.clientLog.Infof("mme Message POST %v %v \n", reqMsgBody, resp.StatusCode)
 	}
 }
 
 func deleteConfigHss(client *clientNF, imsi string) {
 	config := configHss{}
-	num, _ := strconv.ParseInt(imsi, 10, 64)
+	num, err := strconv.ParseInt(imsi, 10, 64)
+	if err != nil {
+		client.clientLog.Errorf("Could not parse IMSI: %v", imsi)
+	}
 	config.StartImsi = uint64(num)
 	config.EndImsi = uint64(num)
 	client.clientLog.Infoln("HSS config ", config)
@@ -793,13 +806,17 @@ func deleteConfigHss(client *clientNF, imsi string) {
 	httpend := client.ConfigPushUrl
 	req, err := http.NewRequest(http.MethodDelete, httpend, reqMsgBody)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := c.Do(req)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	} else {
+		err = resp.Body.Close()
+		if err != nil {
+			client.clientLog.Infof("An Error Occurred %v", err)
+		}
 		client.clientLog.Infof("Message DELETE to HSS %v %v Success\n", reqMsgBody, resp.StatusCode)
 	}
 }
@@ -887,7 +904,7 @@ func postConfigHss(client *clientNF, lastDevGroup *configmodels.DeviceGroups, la
 					}
 				}
 
-				//devGroup not exist in current but exist in lastSlice
+				// devGroup not exist in current but exist in lastSlice
 				devGroup := client.devgroupsConfigClient[oldG]
 				if !found && devGroup != nil {
 					if ok, _ := isDeviceGroupInExistingSlices(client, oldG); !ok {
@@ -912,21 +929,21 @@ func postConfigHss(client *clientNF, lastDevGroup *configmodels.DeviceGroups, la
 				ApnProfiles: make(map[string]*apnProfile),
 			}
 
-			//Traffic Class
-			//override with device-group specific if available
+			// Traffic Class
+			// override with device-group specific if available
 			if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.TrafficClass != nil {
 				config.Qci = devGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci
 				config.Arp = devGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp
 			}
 
-			//UL AMBR
-			//override with device-group specific if available
+			// UL AMBR
+			// override with device-group specific if available
 			if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink != 0 {
 				config.AmbrUl = int32(devGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)
 			}
 
-			//DL AMBR
-			//override with device-group specific if available
+			// DL AMBR
+			// override with device-group specific if available
 			if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink != 0 {
 				config.AmbrDl = int32(devGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)
 			}
@@ -952,7 +969,11 @@ func postConfigHss(client *clientNF, lastDevGroup *configmodels.DeviceGroups, la
 			}
 
 			for _, imsi := range newImsis {
-				num, _ := strconv.ParseInt(imsi, 10, 64)
+				num, err := strconv.ParseInt(imsi, 10, 64)
+				if err != nil {
+					client.clientLog.Errorf("Could not parse IMSI %v", imsi)
+					continue
+				}
 				config.StartImsi = uint64(num)
 				config.EndImsi = uint64(num)
 				authSubsData := imsiData[imsi]
@@ -962,7 +983,11 @@ func postConfigHss(client *clientNF, lastDevGroup *configmodels.DeviceGroups, la
 				}
 				config.Opc = authSubsData.Opc.OpcValue
 				config.Key = authSubsData.PermanentKey.PermanentKeyValue
-				num, _ = strconv.ParseInt(authSubsData.SequenceNumber, 10, 64)
+				num, err = strconv.ParseInt(authSubsData.SequenceNumber, 10, 64)
+				if err != nil {
+					client.clientLog.Errorf("Could not parse SequenceNumber %v", authSubsData.SequenceNumber)
+					continue
+				}
 				config.Sqn = uint64(num)
 				client.clientLog.Infof("Adding SubscritionData for IMSI: %v in HSS ", imsi)
 				b, err := json.Marshal(config)
@@ -976,13 +1001,17 @@ func postConfigHss(client *clientNF, lastDevGroup *configmodels.DeviceGroups, la
 				httpend := client.ConfigPushUrl
 				req, err := http.NewRequest(http.MethodPost, httpend, reqMsgBody)
 				if err != nil {
-					client.clientLog.Infof("An Error Occured %v", err)
+					client.clientLog.Infof("An Error Occurred %v", err)
 				}
 				req.Header.Set("Content-Type", "application/json; charset=utf-8")
 				resp, err := c.Do(req)
 				if err != nil {
-					client.clientLog.Infof("An Error Occured %v", err)
+					client.clientLog.Infof("An Error Occurred %v", err)
 				} else {
+					err = resp.Body.Close()
+					if err != nil {
+						client.clientLog.Infof("An Error Occurred %v", err)
+					}
 					client.clientLog.Infof("Message POST to HSS %v %v Success\n", reqMsgBody, resp.StatusCode)
 				}
 			}
@@ -1008,31 +1037,31 @@ func postConfigPcrf(client *clientNF) {
 		if sliceConfig == nil {
 			continue
 		}
-		//siteInfo := sliceConfig.SiteInfo
-		//apn profile
+		// siteInfo := sliceConfig.SiteInfo
+		// apn profile
 		for _, d := range sliceConfig.SiteDeviceGroup {
 			devGroup := client.devgroupsConfigClient[d]
 			if devGroup == nil {
 				client.clientLog.Errorf("Device Group : [%v] doesn't exist in slice [%v]: ", d, sliceName)
 				continue
 			}
-			//client.clientLog.Infoln("PCRF devgroup ", d)
+			// client.clientLog.Infoln("PCRF devgroup ", d)
 			sgroup := &pcrfServiceGroup{}
 			pcrfServiceName := d + "-service"
 			sgroup.Def_service = append(sgroup.Def_service, pcrfServiceName)
 			config.Policies.ServiceGroups[devGroup.IpDomainExpanded.Dnn] = sgroup
 			pcrfService := &pcrfServices{}
-			//Traffic Class
+			// Traffic Class
 			if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.TrafficClass != nil {
 				pcrfService.Qci = devGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Qci
 				pcrfService.Arp = devGroup.IpDomainExpanded.UeDnnQos.TrafficClass.Arp
 			}
 
-			//AMBR UL
+			// AMBR UL
 			if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink != 0 {
 				pcrfService.Ambr_ul = int32(devGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)
 			}
-			//AMBR DL
+			// AMBR DL
 			if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink != 0 {
 				pcrfService.Ambr_dl = int32(devGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)
 			}
@@ -1045,7 +1074,7 @@ func postConfigPcrf(client *clientNF) {
 				ruleName := d + app.RuleName
 				client.clientLog.Infof("rulename: %v, Rules: %v", ruleName, pcrfService.Rules)
 				pcrfService.Rules = append(pcrfService.Rules, ruleName)
-				//client.clientLog.Infoln("pcrf Service ", pcrfService.Rules)
+				// client.clientLog.Infoln("pcrf Service ", pcrfService.Rules)
 				config.Policies.Services[pcrfServiceName] = pcrfService
 				pcrfRule := &pcrfRules{}
 				ruledef := &pcrfRuledef{}
@@ -1078,7 +1107,7 @@ func postConfigPcrf(client *clientNF) {
 				ruleQInfo.Gbr_ul = 0
 				ruleQInfo.Gbr_dl = 0
 
-				//override with device-group specific if available
+				// override with device-group specific if available
 				if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink != 0 {
 					ruleQInfo.ApnAmbrUl = int32(devGroup.IpDomainExpanded.UeDnnQos.DnnMbrUplink)
 				}
@@ -1086,7 +1115,7 @@ func postConfigPcrf(client *clientNF) {
 					ruleQInfo.Mbr_ul = ruleQInfo.ApnAmbrUl
 				}
 
-				//override with device-group specific if available
+				// override with device-group specific if available
 				if devGroup.IpDomainExpanded.UeDnnQos != nil && devGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink != 0 {
 					ruleQInfo.ApnAmbrDl = int32(devGroup.IpDomainExpanded.UeDnnQos.DnnMbrDownlink)
 				}
@@ -1141,13 +1170,17 @@ func postConfigPcrf(client *clientNF) {
 	httpend := client.ConfigPushUrl
 	req, err := http.NewRequest(http.MethodPost, httpend, reqMsgBody)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := c.Do(req)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	} else {
+		err = resp.Body.Close()
+		if err != nil {
+			client.clientLog.Infof("An Error Occurred %v", err)
+		}
 		client.clientLog.Infof("PCRF Message POST %v %v Success\n", reqMsgBody, resp.StatusCode)
 	}
 }
@@ -1228,13 +1261,17 @@ func postConfigSpgw(client *clientNF) {
 	httpend := client.ConfigPushUrl
 	req, err := http.NewRequest(http.MethodPost, httpend, reqMsgBody)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := c.Do(req)
 	if err != nil {
-		client.clientLog.Infof("An Error Occured %v", err)
+		client.clientLog.Infof("An Error Occurred %v", err)
 	} else {
+		err = resp.Body.Close()
+		if err != nil {
+			client.clientLog.Infof("An Error Occurred %v", err)
+		}
 		client.clientLog.Infof("spgw Message POST %v %v Success\n", reqMsgBody, resp.StatusCode)
 	}
 }

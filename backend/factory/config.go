@@ -14,13 +14,13 @@
 package factory
 
 import (
-	"github.com/omec-project/logger_util"
+	"github.com/omec-project/util/logger"
 )
 
 type Config struct {
-	Info          *Info               `yaml:"info"`
-	Configuration *Configuration      `yaml:"configuration"`
-	Logger        *logger_util.Logger `yaml:"logger"`
+	Info          *Info          `yaml:"info"`
+	Configuration *Configuration `yaml:"configuration"`
+	Logger        *logger.Logger `yaml:"logger"`
 }
 
 type Info struct {
@@ -33,7 +33,7 @@ type Configuration struct {
 	WebServer *WebServer  `yaml:"WebServer,omitempty"`
 	Mongodb   *Mongodb    `yaml:"mongodb"`
 	RocEnd    *RocEndpt   `yaml:"managedByConfigPod,omitempty"` // fetch config during bootup
-	LteEnd    []*LteEndpt `yaml:"endpoints,omitempty"`          //LTE endpoints are configured and not auto-detected
+	LteEnd    []*LteEndpt `yaml:"endpoints,omitempty"`          // LTE endpoints are configured and not auto-detected
 	Mode5G    bool        `yaml:"mode5G,omitempty"`
 	SdfComp   bool        `yaml:"spec-compliant-sdf"`
 	CfgPort   int         `yaml:"cfgport,omitempty"`

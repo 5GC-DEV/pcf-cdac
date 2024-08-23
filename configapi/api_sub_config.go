@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/omec-project/webconsole/dbadapter"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +17,9 @@ import (
 	"github.com/omec-project/webconsole/backend/logger"
 	"github.com/omec-project/webconsole/backend/webui_context"
 	"github.com/omec-project/webconsole/configmodels"
+	"github.com/omec-project/webconsole/dbadapter"
 	"go.mongodb.org/mongo-driver/bson"
+	
 )
 
 const (
@@ -268,7 +269,13 @@ func GetSampleJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, subsData)
 }
 
-// Get all subscribers list
+// GetSubscribers godoc
+//	@Description	Return the list of subscribers
+//	@Tags			Subscribers
+//	@Produce		json
+//	@Success		200	{object}	configmodels.SubsListIE	"List of subscribers. Null if there are no subscribers"
+//	@Failure		500	{object}	nil						"Error retrieving subscribers"
+//	@Router			/api/subscriber/ [get]
 func GetSubscribers(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -295,7 +302,15 @@ func GetSubscribers(c *gin.Context) {
 	c.JSON(http.StatusOK, subsList)
 }
 
-// Get subscriber by IMSI(ueId))
+// GetSubscriberByID godoc
+//	@Description	Get subscriber by IMSI (UE ID)
+//	@Tags			Subscribers
+//	@Param			imsi	path	string	true	"IMSI (UE ID)"	example(imsi-208930100007487)
+//	@Produce		json
+//	@Success		200	{object}	nil	"Subscriber"
+//	@Failure		404	{object}	nil	"Subscriber not found"
+//	@Failure		500	{object}	nil	"Error retrieving subscriber"
+//	@Router			/api/subscriber/{imsi} [get]
 func GetSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 
@@ -357,9 +372,16 @@ func GetSubscriberByID(c *gin.Context) {
 	c.JSON(http.StatusOK, subsData)
 }
 
-// Post subscriber by IMSI(ueId)
+// PostSubscriberByID godoc
+//	@Description	Create subscriber by IMSI (UE ID)
+//	@Tags			Subscribers
+//	@Param			imsi	path		string							true	"IMSI (UE ID)"
+//	@Param			content	body		configmodels.SubsOverrideData	true	" "
+//	@Success		201		{object}	nil								"Subscriber created"
+//	@Failure		400		{object}	nil								"Invalid subscriber content"
+//	@Failure		500		{object}	nil								"Error creating subscriber"
+//	@Router			/api/subscriber/{imsi} [post]
 func PostSubscriberByID(c *gin.Context) {
-
 	setCorsHeader(c)
 
 	var subsOverrideData configmodels.SubsOverrideData
@@ -386,14 +408,14 @@ func PostSubscriberByID(c *gin.Context) {
 		Opc: &models.Opc{
 			EncryptionAlgorithm: 0,
 			EncryptionKey:       0,
-			//OpcValue:            "8e27b6af0e692e750f32667a3b14605d", // Required
+			// OpcValue:            "8e27b6af0e692e750f32667a3b14605d", // Required
 		},
 		PermanentKey: &models.PermanentKey{
 			EncryptionAlgorithm: 0,
 			EncryptionKey:       0,
-			//PermanentKeyValue:   "8baf473f2f8fd09487cccbd7097c6862", // Required
+			// PermanentKeyValue:   "8baf473f2f8fd09487cccbd7097c6862", // Required
 		},
-		//SequenceNumber: "16f3b3f70fc2",
+		// SequenceNumber: "16f3b3f70fc2",
 	}
 
 	// override values
@@ -411,12 +433,14 @@ func PostSubscriberByID(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{})
 
-	msg := configmodels.ConfigMessage{MsgType: configmodels.Sub_data,
+	msg := configmodels.ConfigMessage{
+		MsgType:     configmodels.Sub_data,
 		MsgMethod:   configmodels.Post_op,
 		AuthSubData: &authSubsData,
-		Imsi:        ueId}
+		Imsi:        ueId,
+	}
 	configChannel <- &msg
-	logger.WebUILog.Infoln("Sucessfully Added Subscriber Data to ConfigChannel: ", ueId)
+	logger.WebUILog.Infoln("Successfully Added Subscriber Data to ConfigChannel: ", ueId)
 }
 
 // Put subscriber by IMSI(ueId) and PlmnID(servingPlmnId)
@@ -432,10 +456,12 @@ func PutSubscriberByID(c *gin.Context) {
 	ueId := c.Param("ueId")
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	msg := configmodels.ConfigMessage{MsgType: configmodels.Sub_data,
+	msg := configmodels.ConfigMessage{
+		MsgType:     configmodels.Sub_data,
 		MsgMethod:   configmodels.Post_op,
 		AuthSubData: &subsData.AuthenticationSubscription,
-		Imsi:        ueId}
+		Imsi:        ueId,
+	}
 	configChannel <- &msg
 	logger.WebUILog.Infoln("Put Subscriber Data complete")
 }
@@ -446,7 +472,13 @@ func PatchSubscriberByID(c *gin.Context) {
 	logger.WebUILog.Infoln("Patch One Subscriber Data")
 }
 
-// Delete subscriber by IMSI(ueId)
+// DeleteSubscriberByID godoc
+//	@Description	Delete an existing subscriber
+//	@Tags			Subscribers
+//	@Param			imsi	path		string	true	"IMSI (UE ID)"
+//	@Success		204		{object}	nil		"Subscriber deleted successfully"
+//	@Failure		500		{object}	nil		"Error deleting subscriber"
+//	@Router			/api/subscriber/{imsi} [delete]
 func DeleteSubscriberByID(c *gin.Context) {
 	setCorsHeader(c)
 	logger.WebUILog.Infoln("Delete One Subscriber Data")
@@ -455,9 +487,11 @@ func DeleteSubscriberByID(c *gin.Context) {
 
 	c.JSON(http.StatusNoContent, gin.H{})
 
-	msg := configmodels.ConfigMessage{MsgType: configmodels.Sub_data,
+	msg := configmodels.ConfigMessage{
+		MsgType:   configmodels.Sub_data,
 		MsgMethod: configmodels.Delete_op,
-		Imsi:      ueId}
+		Imsi:      ueId,
+	}
 	configChannel <- &msg
 	logger.WebUILog.Infoln("Delete Subscriber Data complete")
 }

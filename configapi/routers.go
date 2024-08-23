@@ -53,7 +53,6 @@ func AddService(engine *gin.Engine) *gin.RouterGroup {
 		}
 	}
 	return group
-
 }
 
 // Index is the index handler.
@@ -144,5 +143,41 @@ var routes = Routes{
 		http.MethodPut,
 		"/network-slice/:slice-name",
 		NetworkSliceSliceNamePut,
+	},
+	{
+		"GetGnbs",
+		http.MethodGet,
+		"/inventory/gnb",
+		GetGnbs,
+	},
+	{
+		"PostGnb",
+		http.MethodPost,
+		"/inventory/gnb/:gnb-name",
+		PostGnb,
+	},
+	{
+		"DeleteGnb",
+		http.MethodDelete,
+		"/inventory/gnb/:gnb-name",
+		DeleteGnb,
+	},
+	{
+		"GetUpfs",
+		http.MethodGet,
+		"/inventory/upf",
+		GetUpfs,
+	},
+	{
+		"PostUpf",
+		http.MethodPost,
+		"/inventory/upf/:upf-hostname",
+		PostUpf,
+	},
+	{
+		"DeleteUpf",
+		http.MethodDelete,
+		"/inventory/upf/:upf-hostname",
+		DeleteUpf,
 	},
 }
