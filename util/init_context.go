@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,6 +8,7 @@ package util
 
 import (
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/omec-project/openapi"
@@ -32,6 +33,8 @@ func InitpcfContext(context *context.PCFContext) {
 	context.UriScheme = ""
 	context.RegisterIPv4 = factory.PCF_DEFAULT_IPV4 // default localhost
 	context.SBIPort = factory.PCF_DEFAULT_PORT_INT  // default port
+	context.Key = PCF_KEY_PATH                      // default key path
+	context.PEM = PCF_PEM_PATH                      // default PEM path
 	if sbi != nil {
 		if sbi.Scheme != "" {
 			context.UriScheme = models.UriScheme(sbi.Scheme)
@@ -47,6 +50,14 @@ func InitpcfContext(context *context.PCFContext) {
 		} else {
 			context.UriScheme = models.UriScheme_HTTP
 		}
+		if tls := sbi.TLS; tls != nil {
+			if tls.Key != "" {
+				context.Key = tls.Key
+			}
+			if tls.PEM != "" {
+				context.PEM = tls.PEM
+			}
+		}
 
 		context.BindingIPv4 = os.Getenv(sbi.BindingIPv4)
 		if context.BindingIPv4 != "" {
@@ -59,6 +70,14 @@ func InitpcfContext(context *context.PCFContext) {
 			}
 		}
 	}
+	context.EnableNrfCaching = configuration.EnableNrfCaching
+	if configuration.EnableNrfCaching {
+		if configuration.NrfCacheEvictionInterval == 0 {
+			context.NrfCacheEvictionInterval = time.Duration(900) // 15 mins
+		} else {
+			context.NrfCacheEvictionInterval = time.Duration(configuration.NrfCacheEvictionInterval)
+		}
+	}
 	serviceList := configuration.ServiceList
 	context.PlmnList = configuration.PlmnList
 	context.InitNFService(serviceList, config.Info.Version)
@@ -66,8 +85,7 @@ func InitpcfContext(context *context.PCFContext) {
 	context.DefaultBdtRefId = configuration.DefaultBdtRefId
 	for _, service := range context.NfService {
 		var err error
-		context.PcfServiceUris[service.ServiceName] =
-			service.ApiPrefix + "/" + string(service.ServiceName) + "/" + (*service.Versions)[0].ApiVersionInUri
+		context.PcfServiceUris[service.ServiceName] = service.ApiPrefix + "/" + string(service.ServiceName) + "/" + (*service.Versions)[0].ApiVersionInUri
 		context.PcfSuppFeats[service.ServiceName], err = openapi.NewSupportedFeature(service.SupportedFeatures)
 		if err != nil {
 			logger.UtilLog.Errorf("openapi NewSupportedFeature error: %+v", err)
