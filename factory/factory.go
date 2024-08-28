@@ -13,9 +13,8 @@ import (
 	"fmt"
 	"os"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/omec-project/pcf/logger"
+	"gopkg.in/yaml.v2"
 )
 
 var PcfConfig Config
@@ -30,6 +29,9 @@ func InitConfigFactory(f string) error {
 		if yamlErr := yaml.Unmarshal(content, &PcfConfig); yamlErr != nil {
 			return yamlErr
 		}
+		if PcfConfig.Configuration.WebuiUri == "" {
+			PcfConfig.Configuration.WebuiUri = "webui:9876"
+		}
 	}
 
 	return nil
@@ -39,7 +41,7 @@ func CheckConfigVersion() error {
 	currentVersion := PcfConfig.GetVersion()
 
 	if currentVersion != PCF_EXPECTED_CONFIG_VERSION {
-		return fmt.Errorf("config version is [%s], but expected is [%s].",
+		return fmt.Errorf("config version is [%s], but expected is [%s]",
 			currentVersion, PCF_EXPECTED_CONFIG_VERSION)
 	}
 

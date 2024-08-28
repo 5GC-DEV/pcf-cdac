@@ -21,11 +21,10 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/service"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 var PCF = &service.PCF{}
@@ -86,7 +85,7 @@ func main() {
 func action(c *cli.Context) error {
 	if err := PCF.Initialize(c); err != nil {
 		logger.CfgLog.Errorf("%+v", err)
-		return fmt.Errorf("Failed to initialize !!")
+		return fmt.Errorf("failed to initialize")
 	}
 
 	PCF.Start()

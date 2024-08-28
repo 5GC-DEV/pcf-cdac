@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-FROM golang:1.22.2-bookworm AS builder
+FROM golang:1.23.0-bookworm AS builder
 
 LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>"
 
@@ -26,7 +26,7 @@ WORKDIR $GOPATH/src/pcf
 COPY . .
 RUN make all
 
-FROM alpine:3.19 as pcf
+FROM alpine:3.20 AS pcf
 
 LABEL description="ONF open source 5G Core Network" \
     version="Stage 3"

@@ -19,9 +19,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-
-	"github.com/omec-project/logger_util"
 	"github.com/omec-project/pcf/logger"
+	logger_util "github.com/omec-project/util/logger"
 )
 
 type Route struct {

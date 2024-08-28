@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,31 +21,33 @@ import (
 
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-
 	"github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
-	"github.com/omec-project/http2_util"
-	"github.com/omec-project/logger_util"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
+	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
+	"github.com/omec-project/pcf/callback"
 	"github.com/omec-project/pcf/consumer"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/httpcallback"
 	"github.com/omec-project/pcf/internal/notifyevent"
 	"github.com/omec-project/pcf/logger"
+	"github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/oam"
 	"github.com/omec-project/pcf/policyauthorization"
 	"github.com/omec-project/pcf/smpolicy"
 	"github.com/omec-project/pcf/uepolicy"
 	"github.com/omec-project/pcf/util"
+	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
+	loggerUtil "github.com/omec-project/util/logger"
 	"github.com/omec-project/util/path_util"
 	pathUtilLogger "github.com/omec-project/util/path_util/logger"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli"
 )
 
 type PCF struct{}
@@ -114,9 +116,9 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
 	if roc == "true" {
 		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		gClient := client.ConnectToConfigServer("webui:9876")
+		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
 		commChannel := gClient.PublishOnConfigChange(true)
-		go pcf.updateConfig(commChannel)
+		go pcf.UpdateConfig(commChannel)
 	} else {
 		go func() {
 			initLog.Infoln("Use helm chart config ")
@@ -197,7 +199,7 @@ func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
 
 func (pcf *PCF) Start() {
 	initLog.Infoln("Server started")
-	router := logger_util.NewGinWithLogrus(logger.GinLog)
+	router := loggerUtil.NewGinWithLogrus(logger.GinLog)
 
 	bdtpolicy.AddService(router)
 	smpolicy.AddService(router)
@@ -206,6 +208,9 @@ func (pcf *PCF) Start() {
 	policyauthorization.AddService(router)
 	httpcallback.AddService(router)
 	oam.AddService(router)
+	callback.AddService(router)
+
+	go metrics.InitMetrics()
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"},
@@ -228,7 +233,11 @@ func (pcf *PCF) Start() {
 
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
-	//Attempt NRF Registration until success
+	if self.EnableNrfCaching {
+		initLog.Infoln("Enable NRF caching feature")
+		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
+	}
+	// Attempt NRF Registration until success
 	go pcf.RegisterNF()
 
 	signalChannel := make(chan os.Signal, 1)
@@ -317,7 +326,7 @@ func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
 		nfProfile.HeartBeatTimer = 60
 	}
 	logger.InitLog.Infof("Started KeepAlive Timer: %v sec", nfProfile.HeartBeatTimer)
-	//AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls pcf.UpdateNF function
+	// AfterFunc starts timer and waits for KeepAliveTimer to elapse and then calls pcf.UpdateNF function
 	KeepAliveTimer = time.AfterFunc(time.Duration(nfProfile.HeartBeatTimer)*time.Second, pcf.UpdateNF)
 }
 
@@ -351,7 +360,7 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 		return profile, err
 	}
 	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
-	//Indefinite attempt to register until success
+	// Indefinite attempt to register until success
 	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 	return profile, err
 }
@@ -359,7 +368,7 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 func (pcf *PCF) RegisterNF() {
 	for {
 		msg := <-ConfigPodTrigger
-		//wait till Config pod updates config
+		// wait till Config pod updates config
 		if msg {
 			initLog.Infof("Config update trigger %v received in PCF App", msg)
 			profile, err := pcf.BuildAndSendRegisterNFInstance()
@@ -367,11 +376,11 @@ func (pcf *PCF) RegisterNF() {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
 				pcf.StartKeepAliveTimer(profile)
-				//NRF Registration Successful, Trigger for UDR Discovery
+				// NRF Registration Successful, Trigger for UDR Discovery
 				pcf.DiscoverUdr()
 			}
 		} else {
-			//stopping keepAlive timer
+			// stopping keepAlive timer
 			KeepAliveTimerMutex.Lock()
 			pcf.StopKeepAliveTimer()
 			KeepAliveTimerMutex.Unlock()
@@ -389,7 +398,7 @@ func (pcf *PCF) RegisterNF() {
 	}
 }
 
-// UpdateNF is the callback function, this is called when keepalivetimer elapsed
+// UpdateNF is the callback function, this is called when keepalive timer elapsed
 func (pcf *PCF) UpdateNF() {
 	KeepAliveTimerMutex.Lock()
 	defer KeepAliveTimerMutex.Unlock()
@@ -397,7 +406,7 @@ func (pcf *PCF) UpdateNF() {
 		initLog.Warnf("KeepAlive timer has been stopped.")
 		return
 	}
-	//setting default value 60 sec
+	// setting default value 60 sec
 	var heartBeatTimer int32 = 60
 	pitem := models.PatchItem{
 		Op:    "replace",
@@ -409,10 +418,10 @@ func (pcf *PCF) UpdateNF() {
 	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
 	if problemDetails != nil {
 		initLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
-		//5xx response from NRF, 404 Not Found, 400 Bad Request
+		// 5xx response from NRF, 404 Not Found, 400 Bad Request
 		if (problemDetails.Status/100) == 5 ||
 			problemDetails.Status == 404 || problemDetails.Status == 400 {
-			//register with NRF full profile
+			// register with NRF full profile
 			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
 			if err != nil {
 				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
@@ -431,7 +440,7 @@ func (pcf *PCF) UpdateNF() {
 		heartBeatTimer = nfProfile.HeartBeatTimer
 	}
 	logger.InitLog.Debugf("Restarted KeepAlive Timer: %v sec", heartBeatTimer)
-	//restart timer with received HeartBeatTimer value
+	// restart timer with received HeartBeatTimer value
 	KeepAliveTimer = time.AfterFunc(time.Duration(heartBeatTimer)*time.Second, pcf.UpdateNF)
 }
 
@@ -440,7 +449,7 @@ func (pcf *PCF) DiscoverUdr() {
 	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}
-	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, param); err != nil {
+	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
 		initLog.Errorln(err)
 	} else {
 		for _, nfProfile := range resp.NfInstances {
@@ -470,23 +479,24 @@ func GetBitRateUnit(val int64) (int64, string) {
 		return val, unit
 	}
 	if val >= 0xFFFF {
-		val = (val / 1000)
+		val = val / 1000
 		unit = " Kbps"
 		if val >= 0xFFFF {
-			val = (val / 1000)
+			val = val / 1000
 			unit = " Mbps"
 		}
 		if val >= 0xFFFF {
-			val = (val / 1000)
+			val = val / 1000
 			unit = " Gbps"
 		}
 	} else {
-		//minimum supported is kbps by SMF/UE
+		// minimum supported is kbps by SMF/UE
 		val = val / 1000
 	}
 
 	return val, unit
 }
+
 func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
 	sessionRule = &models.SessionRule{}
 	qos := devGroup.IpDomainDetails.UeDnnQos
@@ -494,7 +504,7 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 		sessionRule.AuthDefQos = &models.AuthorizedDefaultQos{
 			Var5qi: qos.TrafficClass.Qci,
 			Arp:    &models.Arp{PriorityLevel: qos.TrafficClass.Arp},
-			//PriorityLevel:
+			// PriorityLevel:
 		}
 	}
 	ul, uunit := GetBitRateUnit(qos.DnnMbrUplink)
@@ -519,7 +529,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		}
 		var rule models.PccRule
 		var qos models.QosData
-		rule.PccRuleId = strconv.FormatInt(int64(id), 10)
+		rule.PccRuleId = strconv.FormatInt(id, 10)
 		rule.Precedence = pccrule.Priority
 		if pccrule.Qos != nil {
 			qos.QosId = strconv.FormatInt(id, 10)
@@ -554,7 +564,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 				}
 			}
 			if pccrule.Qos.MaxbrUl == 0 && pccrule.Qos.MaxbrDl == 0 && pccrule.Qos.GbrUl == 0 && pccrule.Qos.GbrDl == 0 {
-				//getting from sessionrule
+				// getting from sessionrule
 				qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
 				qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
 			}
@@ -567,7 +577,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		for _, pflow := range pccrule.FlowInfos {
 			var flow models.FlowInformation
 			flow.FlowDescription = pflow.FlowDesc
-			//flow.TosTrafficClass = pflow.TosTrafficClass
+			// flow.TosTrafficClass = pflow.TosTrafficClass
 			id, err := pccPolicy.IdGenerator.Allocate()
 			if err != nil {
 				logger.GrpcLog.Errorf("IdGenerator allocation failed: %v", err)
@@ -587,7 +597,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 				strings.HasSuffix(flow.FlowDescription, "any to assigned ") {
 				qos.DefQosFlowIndication = true
 			}
-			//traffic control info set based on flow at present
+			// traffic control info set based on flow at present
 			var tcData models.TrafficControlData
 			tcData.TcId = "TcId-" + strconv.FormatInt(id, 10)
 
@@ -640,7 +650,46 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 	return false, nil
 }
 
-func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
+func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string, sessionrule *models.SessionRule, slice *protos.NetworkSlice) {
+	self := context.PCF_Self()
+	self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
+	policyData := self.PcfSubscriberPolicyData[imsi]
+	policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
+
+	policyData.PccPolicy = make(map[string]*context.PccPolicy)
+	policyData.PccPolicy[sliceid] = &context.PccPolicy{
+		PccRules: make(map[string]*models.PccRule),
+		QosDecs:  make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
+		SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil,
+	}
+
+	policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{
+		SessionRules:           make(map[string]*models.SessionRule),
+		SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
+	}
+
+	id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+	if err != nil {
+		logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
+	}
+
+	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
+	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
+	pccPolicy := getPccRules(slice, sessionrule)
+
+	for index, element := range pccPolicy.PccRules {
+		policyData.PccPolicy[sliceid].PccRules[index] = element
+	}
+	for index, element := range pccPolicy.QosDecs {
+		policyData.PccPolicy[sliceid].QosDecs[index] = element
+	}
+	for index, element := range pccPolicy.TraffContDecs {
+		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+	}
+	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
+}
+
+func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
 	sliceid := slice.Nssai.Sst + slice.Nssai.Sd
 	switch slice.OperationType {
@@ -656,35 +705,10 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 			dnn = devgroup.IpDomainDetails.DnnName
 			sessionrule = getSessionRule(devgroup)
 			for _, imsi := range devgroup.Imsi {
-				self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
-				policyData := self.PcfSubscriberPolicyData[imsi]
-				policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
-				policyData.PccPolicy = make(map[string]*context.PccPolicy)
-				policyData.PccPolicy[sliceid] = &context.PccPolicy{PccRules: make(map[string]*models.PccRule),
-					QosDecs: make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
-					SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil}
-				policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{SessionRules: make(map[string]*models.SessionRule), SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16)}
-				id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
-				if err != nil {
-					logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
-				}
-				//tcid, _ := policyData.PccPolicy[sliceid].TcIdGenerator.Allocate()
-				sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
-				policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
-				pccPolicy := getPccRules(slice, sessionrule)
-				for index, element := range pccPolicy.PccRules {
-					policyData.PccPolicy[sliceid].PccRules[index] = element
-				}
-				for index, element := range pccPolicy.QosDecs {
-					policyData.PccPolicy[sliceid].QosDecs[index] = element
-				}
-				for index, element := range pccPolicy.TraffContDecs {
-					policyData.PccPolicy[sliceid].TraffContDecs[index] = element
-				}
-				policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
-				//self.DisplayPcfSubscriberPolicyData(imsi)
+				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 			}
 		}
+
 	case protos.OpType_SLICE_UPDATE:
 		logger.GrpcLog.Infof("Received Slice with OperationType: Update from ConfigPod")
 		for _, devgroup := range slice.DeviceGroup {
@@ -697,41 +721,8 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 
 			dnn = devgroup.IpDomainDetails.DnnName
 			sessionrule = getSessionRule(devgroup)
-
-			for _, imsi := range slice.AddUpdatedImsis {
-				if ImsiExistInDeviceGroup(devgroup, imsi) {
-					// TODO policy exists, so compare and get difference with existing policy then notify the subscriber
-					self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
-					policyData := self.PcfSubscriberPolicyData[imsi]
-					policyData.CtxLog = logger.CtxLog.WithField(logger.FieldSupi, "imsi-"+imsi)
-					policyData.PccPolicy = make(map[string]*context.PccPolicy)
-					policyData.PccPolicy[sliceid] = &context.PccPolicy{PccRules: make(map[string]*models.PccRule),
-						QosDecs: make(map[string]*models.QosData), TraffContDecs: make(map[string]*models.TrafficControlData),
-						SessionPolicy: make(map[string]*context.SessionPolicy), IdGenerator: nil}
-					policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{SessionRules: make(map[string]*models.SessionRule),
-						SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16)}
-
-					//Added session rules
-					id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
-					if err != nil {
-						logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
-					}
-					sessionrule.SessRuleId = dnn + strconv.Itoa(int(id))
-					policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
-					//Added pcc rules
-					pccPolicy := getPccRules(slice, sessionrule)
-					for index, element := range pccPolicy.PccRules {
-						policyData.PccPolicy[sliceid].PccRules[index] = element
-					}
-					for index, element := range pccPolicy.QosDecs {
-						policyData.PccPolicy[sliceid].QosDecs[index] = element
-					}
-					for index, element := range pccPolicy.TraffContDecs {
-						policyData.PccPolicy[sliceid].TraffContDecs[index] = element
-					}
-					policyData.CtxLog.Infof("Subscriber Detals: %v", policyData)
-				}
-				//self.DisplayPcfSubscriberPolicyData(imsi)
+			for _, imsi := range devgroup.Imsi {
+				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 			}
 		}
 
@@ -746,7 +737,7 @@ func (pcf *PCF) UpdatePcfSubsriberPolicyData(slice *protos.NetworkSlice) {
 				logger.GrpcLog.Errorf("PccPolicy for the slice: %v not exist in SubscriberPolicyData", sliceid)
 				continue
 			}
-			//sessionrules, pccrules if exist in slice, implicitly deletes all sessionrules, pccrules for this sliceid
+			// sessionrules, pccrules if exist in slice, implicitly deletes all sessionrules, pccrules for this sliceid
 			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
@@ -860,17 +851,17 @@ func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
 	logger.GrpcLog.Infof("PlmnList Present in PCF: %v", pcfContext.PlmnList)
 }
 
-func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
+func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
 	var minConfig bool
 	pcfContext := context.PCF_Self()
 	for rsp := range commChannel {
-		logger.GrpcLog.Infoln("Received updateConfig in the pcf app : ", rsp)
+		logger.GrpcLog.Infoln("Received UpdateConfig in the pcf app : ", rsp)
 		for _, ns := range rsp.NetworkSlice {
 			logger.GrpcLog.Infoln("Network Slice Name ", ns.Name)
 
-			//Update Qos Info
-			//Update/Create/Delete PcfSubscriberPolicyData
-			pcf.UpdatePcfSubsriberPolicyData(ns)
+			// Update Qos Info
+			// Update/Create/Delete PcfSubscriberPolicyData
+			pcf.UpdatePcfSubscriberPolicyData(ns)
 
 			pcf.UpdateDnnList(ns)
 
@@ -893,7 +884,7 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 			if len(pcfContext.PlmnList) > 0 {
 				minConfig = true
 				ConfigPodTrigger <- true
-				//Start Heart Beat timer for periodic config updates to NRF
+				// Start Heart Beat timer for periodic config updates to NRF
 				logger.GrpcLog.Infoln("Send config trigger to main routine first time config")
 			}
 		} else if minConfig { // one or more slices are configured hence minConfig is true
@@ -903,7 +894,7 @@ func (pcf *PCF) updateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 				ConfigPodTrigger <- false
 				logger.GrpcLog.Infoln("Send config trigger to main routine config deleted")
 			} else {
-				//configuration update from simapp/RoC
+				// configuration update from simapp/RoC
 				ConfigPodTrigger <- true
 				logger.GrpcLog.Infoln("Send config trigger to main routine config updated")
 			}

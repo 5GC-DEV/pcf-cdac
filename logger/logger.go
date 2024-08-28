@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,10 +11,9 @@ import (
 	"time"
 
 	formatter "github.com/antonfisher/nested-logrus-formatter"
+	"github.com/omec-project/util/logger"
+	"github.com/omec-project/util/logger_conf"
 	"github.com/sirupsen/logrus"
-
-	"github.com/omec-project/logger_conf"
-	"github.com/omec-project/logger_util"
 )
 
 var (
@@ -36,6 +35,7 @@ var (
 	GinLog                 *logrus.Entry
 	GrpcLog                *logrus.Entry
 	NotifyEventLog         *logrus.Entry
+	ProducerLog            *logrus.Entry
 )
 
 const (
@@ -54,12 +54,12 @@ func init() {
 		FieldsOrder:     []string{"component", "category"},
 	}
 
-	free5gcLogHook, err := logger_util.NewFileHook(logger_conf.Free5gcLogFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
+	free5gcLogHook, err := logger.NewFileHook(logger_conf.Free5gcLogFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
 	if err == nil {
 		log.Hooks.Add(free5gcLogHook)
 	}
 
-	selfLogHook, err := logger_util.NewFileHook(logger_conf.NfLogDir+"pcf.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
+	selfLogHook, err := logger.NewFileHook(logger_conf.NfLogDir+"pcf.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0o666)
 	if err == nil {
 		log.Hooks.Add(selfLogHook)
 	}
@@ -81,6 +81,7 @@ func init() {
 	GinLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GIN"})
 	GrpcLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "GRPC"})
 	NotifyEventLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "NotifyEvent"})
+	ProducerLog = log.WithFields(logrus.Fields{"component": "PCF", "category": "Producer"})
 }
 
 func SetLogLevel(level logrus.Level) {

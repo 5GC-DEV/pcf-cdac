@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/cydev/zero"
-
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	pcf_context "github.com/omec-project/pcf/context"
@@ -63,7 +62,8 @@ func transferMedCompRmToMedComp(medCompRm *models.MediaComponentRm) *models.Medi
 
 // Handle Create/ Modify  Media SubComponent
 func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *models.MediaComponent,
-	medSubComp *models.MediaSubComponent, var5qi int32) (*models.PccRule, *models.ProblemDetails) {
+	medSubComp *models.MediaSubComponent, var5qi int32,
+) (*models.PccRule, *models.ProblemDetails) {
 	var flowInfos []models.FlowInformation
 	if tempFlowInfos, err := getFlowInfos(medSubComp); err != nil {
 		problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
@@ -152,7 +152,8 @@ func HandlePostAppSessionsContext(request *httpwrapper.Request) *httpwrapper.Res
 }
 
 func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppSessionContext,
-	string, *models.ProblemDetails) {
+	string, *models.ProblemDetails,
+) {
 	ascReqData := appSessCtx.AscReqData
 	pcfSelf := pcf_context.PCF_Self()
 
@@ -446,7 +447,8 @@ func HandleDeleteAppSessionContext(request *httpwrapper.Request) *httpwrapper.Re
 }
 
 func DeleteAppSessionContextProcedure(appSessID string,
-	eventsSubscReqData *models.EventsSubscReqData) *models.ProblemDetails {
+	eventsSubscReqData *models.EventsSubscReqData,
+) *models.ProblemDetails {
 	pcfSelf := pcf_context.PCF_Self()
 	var appSession *pcf_context.AppSessionData
 	if val, ok := pcfSelf.AppSessionPool.Load(appSessID); ok {
@@ -464,7 +466,7 @@ func DeleteAppSessionContextProcedure(appSessID string,
 	deletedSmPolicyDec := models.SmPolicyDecision{}
 	for _, pccRuleID := range appSession.RelatedPccRuleIds {
 		if err := smPolicy.RemovePccRule(pccRuleID, &deletedSmPolicyDec); err != nil {
-			logger.PolicyAuthorizationlog.Warnf(err.Error())
+			logger.PolicyAuthorizationlog.Warnln(err.Error())
 		}
 	}
 
@@ -542,7 +544,8 @@ func HandleModAppSessionContext(request *httpwrapper.Request) *httpwrapper.Respo
 }
 
 func ModAppSessionContextProcedure(appSessID string,
-	ascUpdateData models.AppSessionContextUpdateData) (*models.ProblemDetails, *models.AppSessionContext) {
+	ascUpdateData models.AppSessionContextUpdateData,
+) (*models.ProblemDetails, *models.AppSessionContext) {
 	pcfSelf := pcf_context.PCF_Self()
 	var appSession *pcf_context.AppSessionData
 	if val, ok := pcfSelf.AppSessionPool.Load(appSessID); ok {
@@ -716,8 +719,7 @@ func ModAppSessionContextProcedure(appSessID string,
 				continue
 			}
 			if !util.CheckPolicyControlReqTrig(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig) {
-				smPolicy.PolicyDecision.PolicyCtrlReqTriggers =
-					append(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig)
+				smPolicy.PolicyDecision.PolicyCtrlReqTriggers = append(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig)
 				updateSMpolicy = true
 			}
 		}
@@ -922,7 +924,8 @@ func SendAppSessionEventNotification(appSession *pcf_context.AppSessionData, req
 }
 
 func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData models.EventsSubscReqData) (
-	*models.UpdateEventsSubscResponse, string, int, *models.ProblemDetails) {
+	*models.UpdateEventsSubscResponse, string, int, *models.ProblemDetails,
+) {
 	pcfSelf := pcf_context.PCF_Self()
 
 	var appSession *pcf_context.AppSessionData
@@ -978,8 +981,7 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 			continue
 		}
 		if !util.CheckPolicyControlReqTrig(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig) {
-			smPolicy.PolicyDecision.PolicyCtrlReqTriggers =
-				append(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig)
+			smPolicy.PolicyDecision.PolicyCtrlReqTriggers = append(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig)
 			updataSmPolicy = true
 		}
 	}
@@ -1097,7 +1099,8 @@ func SendAppSessionTermination(appSession *pcf_context.AppSessionData, request m
 
 // Handle Create/ Modify Background Data Transfer Policy Indication
 func handleBDTPolicyInd(pcfSelf *pcf_context.PCFContext,
-	appSessCtx *models.AppSessionContext) (err error) {
+	appSessCtx *models.AppSessionContext,
+) (err error) {
 	req := appSessCtx.AscReqData
 
 	var requestSuppFeat openapi.SupportedFeature
@@ -1145,7 +1148,8 @@ func handleBDTPolicyInd(pcfSelf *pcf_context.PCFContext,
 // provisioning of sponsored connectivity information
 func handleSponsoredConnectivityInformation(smPolicy *pcf_context.UeSmPolicyData, relatedPccRuleIds map[string]string,
 	aspID, sponID string, sponStatus models.SponsoringStatus, umData *models.UsageMonitoringData,
-	updateSMpolicy *bool) error {
+	updateSMpolicy *bool,
+) error {
 	if sponStatus == models.SponsoringStatus_DISABLED {
 		logger.PolicyAuthorizationlog.Debugf("Sponsored Connectivity is disabled by AF")
 		umID := util.GetUmId(aspID, sponID)
@@ -1174,7 +1178,7 @@ func handleSponsoredConnectivityInformation(smPolicy *pcf_context.UeSmPolicyData
 		if umData != nil {
 			supp := util.CheckSuppFeat(smPolicy.PolicyDecision.SuppFeat, 5) // UMC support = 5 in 29512
 			if !supp {
-				err := fmt.Errorf("Usage Monitor Control is not supported in SMF")
+				err := fmt.Errorf("usage monitor control is not supported in SMF")
 				return err
 			}
 		}
@@ -1274,7 +1278,7 @@ func getFlowInfos(comp models.MediaComponent) (flows []models.FlowInformation, e
 func getFlowInfos(subComp *models.MediaSubComponent) ([]models.FlowInformation, error) {
 	var flows []models.FlowInformation
 	if subComp.EthfDescs != nil {
-		return nil, fmt.Errorf("Flow Description with Mac Address does not support")
+		return nil, fmt.Errorf("flow description with mac address not supported")
 	}
 	fStatus := subComp.FStatus
 	if subComp.FlowUsage == models.FlowUsage_RTCP {
@@ -1324,13 +1328,14 @@ func flowDescFromN5toN7(n5Flow string) (n7Flow string, direction models.FlowDire
 		n7Flow = strings.Replace(n5Flow, "permit inout", "permit out", -1)
 		direction = models.FlowDirection_BIDIRECTIONAL
 	} else {
-		err = fmt.Errorf("Invaild flow Description[%s]", n5Flow)
+		err = fmt.Errorf("invaild flow description[%s]", n5Flow)
 	}
 	return
 }
 
 func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (models.QosData,
-	bool, bool) {
+	bool, bool,
+) {
 	var dlExist bool
 	var ulExist bool
 	updatedQosData := qosData
@@ -1460,7 +1465,8 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 }
 
 func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
-	subsComp *models.MediaSubComponent) (updatedQosData models.QosData, ulExist, dlExist bool) {
+	subsComp *models.MediaSubComponent,
+) (updatedQosData models.QosData, ulExist, dlExist bool) {
 	updatedQosData = *qosData
 	if comp.FStatus == models.FlowStatus_REMOVED {
 		updatedQosData.MaxbrDl = ""
@@ -1602,7 +1608,7 @@ func removeMediaComp(appSession *pcf_context.AppSessionData, compN string) {
 				pccRuleID := idMaps[key]
 				err := smPolicy.RemovePccRule(pccRuleID, nil)
 				if err != nil {
-					logger.PolicyAuthorizationlog.Warnf(err.Error())
+					logger.PolicyAuthorizationlog.Warnln(err.Error())
 				}
 				delete(appSession.RelatedPccRuleIds, key)
 				delete(appSession.PccRuleIdMapToCompId, pccRuleID)
@@ -1611,7 +1617,7 @@ func removeMediaComp(appSession *pcf_context.AppSessionData, compN string) {
 			pccRuleID := idMaps[compN]
 			err := smPolicy.RemovePccRule(pccRuleID, nil)
 			if err != nil {
-				logger.PolicyAuthorizationlog.Warnf(err.Error())
+				logger.PolicyAuthorizationlog.Warnln(err.Error())
 			}
 			delete(appSession.RelatedPccRuleIds, compN)
 			delete(appSession.PccRuleIdMapToCompId, pccRuleID)
@@ -1652,7 +1658,8 @@ func threshRmToThresh(threshrm *models.UsageThresholdRm) *models.UsageThreshold 
 }
 
 func extractUmData(umID string, eventSubs map[models.AfEvent]models.AfNotifMethod,
-	threshold *models.UsageThreshold) (umData *models.UsageMonitoringData, err error) {
+	threshold *models.UsageThreshold,
+) (umData *models.UsageMonitoringData, err error) {
 	if _, umExist := eventSubs[models.AfEvent_USAGE_REPORT]; umExist {
 		if threshold == nil {
 			return nil, fmt.Errorf("UsageThreshold is nil in USAGE REPORT Subscription")
@@ -1665,7 +1672,8 @@ func extractUmData(umID string, eventSubs map[models.AfEvent]models.AfNotifMetho
 }
 
 func modifyRemainBitRate(smPolicy *pcf_context.UeSmPolicyData, qosData *models.QosData,
-	ulExist, dlExist bool) *models.ProblemDetails {
+	ulExist, dlExist bool,
+) *models.ProblemDetails {
 	// if request GBR == 0, qos GBR = MBR
 	// if request GBR > remain GBR, qos GBR = remain GBR
 	if ulExist {
@@ -1708,7 +1716,8 @@ func modifyRemainBitRate(smPolicy *pcf_context.UeSmPolicyData, qosData *models.Q
 }
 
 func provisioningOfTrafficRoutingInfo(smPolicy *pcf_context.UeSmPolicyData, appID string,
-	routeReq *models.AfRoutingRequirement, fStatus models.FlowStatus) *models.PccRule {
+	routeReq *models.AfRoutingRequirement, fStatus models.FlowStatus,
+) *models.PccRule {
 	var tcData *models.TrafficControlData
 
 	// TODO : handle temporal or spatial validity
