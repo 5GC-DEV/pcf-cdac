@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/anaswarac-dac/config5g-cdac/proto/client"
+	protos "github.com/anaswarac-dac/config5g-cdac/proto/sdcoreConfig"
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/config5g/proto/client"
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	openapiLogger "github.com/omec-project/openapi/logger"
 	"github.com/omec-project/openapi/models"
@@ -480,7 +480,7 @@ func GetBitRateUnit(val int64) (int64, string) {
 	return val, unit
 }
 
-func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
+/* func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
 	sessionRule = &models.SessionRule{}
 	qos := devGroup.IpDomainDetails.UeDnnQos
 	if qos.TrafficClass != nil {
@@ -497,7 +497,58 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 		Downlink: strconv.FormatInt(dl, 10) + dunit,
 	}
 	return sessionRule
+} */
+
+// C-DAC START
+func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
+	sessionRule = &models.SessionRule{}
+
+	// Ensure IpDomainDetails is not nil or empty
+	if len(devGroup.IpDomainDetails) == 0 {
+		logger.GrpcLog.Warnf("IpDomainDetails is nil or empty for device group: %s", devGroup.Name)
+		return nil
+	}
+	// Access the first IpDomain in the slice
+	ipDomain := devGroup.IpDomainDetails[0]
+	logger.GrpcLog.Infof("Processing IpDomain: %s for DeviceGroup: %s", ipDomain.Name, devGroup.Name)
+
+	// Ensure UeDnnQos is not nil
+	if ipDomain.UeDnnQos == nil {
+		logger.GrpcLog.Warnf("UeDnnQos is nil for IpDomain: %s in DeviceGroup: %s", ipDomain.Name, devGroup.Name)
+		return nil
+	}
+	qos := ipDomain.UeDnnQos
+
+	// Log DNN details
+	logger.GrpcLog.Infof("Selected DNN: %s for IpDomain: %s", ipDomain.DnnName, ipDomain.Name)
+
+	// Map QoS details to the session rule
+	if qos.TrafficClass != nil {
+		sessionRule.AuthDefQos = &models.AuthorizedDefaultQos{
+			Var5qi: qos.TrafficClass.Qci,
+			Arp:    &models.Arp{PriorityLevel: qos.TrafficClass.Arp},
+		}
+		logger.GrpcLog.Infof("QoS Traffic Class: QCI=%d, ARP=%d for IpDomain: %s",
+			qos.TrafficClass.Qci, qos.TrafficClass.Arp, ipDomain.Name)
+	} else {
+		logger.GrpcLog.Warnf("TrafficClass is nil for UeDnnQos in IpDomain: %s", ipDomain.Name)
+	}
+
+	// Set uplink and downlink AMBR
+	ul, uunit := GetBitRateUnit(qos.DnnMbrUplink)
+	dl, dunit := GetBitRateUnit(qos.DnnMbrDownlink)
+	sessionRule.AuthSessAmbr = &models.Ambr{
+		Uplink:   strconv.FormatInt(ul, 10) + uunit,
+		Downlink: strconv.FormatInt(dl, 10) + dunit,
+	}
+
+	// Log AMBR details
+	logger.GrpcLog.Infof("AMBR Uplink: %s, Downlink: %s for DNN: %s in IpDomain: %s",
+		sessionRule.AuthSessAmbr.Uplink, sessionRule.AuthSessAmbr.Downlink, ipDomain.DnnName, ipDomain.Name)
+	return sessionRule
 }
+
+// C-DAC END
 
 func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (pccPolicy context.PccPolicy) {
 	if slice.AppFilters == nil || slice.AppFilters.PccRuleBase == nil {
@@ -678,31 +729,53 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	switch slice.OperationType {
 	case protos.OpType_SLICE_ADD:
 		logger.GrpcLog.Infoln("received Slice with OperationType: Add from ConfigPod")
+		/*for _, devgroup := range slice.DeviceGroup {
+		/* var sessionrule *models.SessionRule
+		var dnn string
+		if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
+			logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+			continue
+		}
+		dnn = devgroup.IpDomainDetails.DnnName
+		sessionrule = getSessionRule(devgroup) */
+		// C-dac
 		for _, devgroup := range slice.DeviceGroup {
 			var sessionrule *models.SessionRule
 			var dnn string
-			if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
-				logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+			if len(devgroup.IpDomainDetails) == 0 {
+				logger.GrpcLog.Warnf("ip details in ipdomain not exist for device group: %v", devgroup.Name)
 				continue
 			}
-			dnn = devgroup.IpDomainDetails.DnnName
+			if devgroup.IpDomainDetails[0].UeDnnQos == nil {
+				logger.GrpcLog.Warnf("qos details in ipdomain not exist for device group: %v", devgroup.Name)
+				continue
+			}
+			// Access the first IpDomain in the slice
+			dnn = devgroup.IpDomainDetails[0].DnnName
 			sessionrule = getSessionRule(devgroup)
 			for _, imsi := range devgroup.Imsi {
 				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 			}
 		}
+		/*for _, imsi := range devgroup.Imsi {
+			pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+		}*/
 
 	case protos.OpType_SLICE_UPDATE:
 		logger.GrpcLog.Infoln("received Slice with OperationType: Update from ConfigPod")
 		for _, devgroup := range slice.DeviceGroup {
 			var sessionrule *models.SessionRule
 			var dnn string
-			if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
+			if len(devgroup.IpDomainDetails) == 0 {
+				logger.GrpcLog.Warnf("ip details in ipdomain not exist for device group: %v", devgroup.Name)
+				continue
+			}
+			if devgroup.IpDomainDetails[0].UeDnnQos == nil {
 				logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
 				continue
 			}
 
-			dnn = devgroup.IpDomainDetails.DnnName
+			dnn = devgroup.IpDomainDetails[0].DnnName
 			sessionrule = getSessionRule(devgroup)
 			for _, imsi := range devgroup.Imsi {
 				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
@@ -762,8 +835,8 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 	case protos.OpType_SLICE_UPDATE:
 		var dnnList []string
 		for _, devgroup := range ns.DeviceGroup {
-			if devgroup.IpDomainDetails != nil {
-				dnnList = append(dnnList, devgroup.IpDomainDetails.DnnName)
+			if devgroup.IpDomainDetails != nil || len(devgroup.IpDomainDetails) == 0 {
+				dnnList = append(dnnList, devgroup.IpDomainDetails[0].DnnName)
 			}
 		}
 		if pcfConfig.DnnList == nil {
