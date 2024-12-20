@@ -21,14 +21,36 @@ var Data = []byte(`{
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
-		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
-				"IpDomainDetails": {
-				"DnnName": "internet",
-				"UeDnnQos": {"DnnMbrUplink": 100000, "DnnMbrDownlink": 50000, "TrafficClass": {"Qci": 9, "Arp": 6}}
-				},
-				"Imsi": ["123456789123456", "123456789123457", "123456789123458"]}
-		 ],
+		  "DeviceGroup": [
+			{
+				"Name": "dg1",
+				"IpDomainDetails": [
+					{
+						"DnnName": "internet",
+						"UeDnnQos": {
+							"DnnMbrUplink": 100000,
+							"DnnMbrDownlink": 50000,
+							"TrafficClass": {
+								"Qci": 9,
+								"Arp": 6
+							}
+						}
+					},
+					{
+						"DnnName": "ims",
+						"UeDnnQos": {
+							"DnnMbrUplink": 100000,
+							"DnnMbrDownlink": 50000,
+							"TrafficClass": {
+								"Qci": 5,
+								"Arp": 3
+							}
+						}
+					}
+				],
+				"Imsi": ["123456789123456", "123456789123457", "123456789123458"]
+			}
+		],		
 		 "AppFilters": {
 			"PccRuleBase": [{"FlowInfos": [{"FlowDesc": "permit out ip from 8.8.8.8/32 to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule1", "Priority": 15, "Qos": {"Var5qi": 8}},
 						   {"FlowInfos": [{"FlowDesc": "permit out ip from any to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule2", "Priority": 25}]
@@ -51,14 +73,36 @@ var UData = []byte(`{
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
-		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
-				"IpDomainDetails": {
-				"DnnName": "internet",
-				"UeDnnQos": {"DnnMbrUplink": 20000, "DnnMbrDownlink": 80000, "TrafficClass": {"Qci": 9, "Arp": 6}}
-				},
-				"Imsi": ["123456789123456", "123456789123457", "123456789123458", "123456789123459", "123456789123460"]}
-		 ],
+		  "DeviceGroup": [
+			{
+				"Name": "dg1",
+				"IpDomainDetails": [
+					{
+						"DnnName": "internet",
+						"UeDnnQos": {
+							"DnnMbrUplink": 100000,
+							"DnnMbrDownlink": 50000,
+							"TrafficClass": {
+								"Qci": 9,
+								"Arp": 6
+							}
+						}
+					},
+					{
+						"DnnName": "ims",
+						"UeDnnQos": {
+							"DnnMbrUplink": 100000,
+							"DnnMbrDownlink": 50000,
+							"TrafficClass": {
+								"Qci": 5,
+								"Arp": 3
+							}
+						}
+					}
+				],
+				"Imsi": ["123456789123456", "123456789123457", "123456789123458"]
+			}
+		],
 		 "AppFilters": {
 			"PccRuleBase": [{"FlowInfos": [{"FlowDesc": "permit out ip from 8.8.8.8/32 to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule1", "Priority": 15, "Qos": {"Var5qi": 8}},
 						   {"FlowInfos": [{"FlowDesc": "permit out ip from any to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule2", "Priority": 25}]
@@ -82,14 +126,36 @@ var UData1 = []byte(`{
 			],
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
-		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
-				"IpDomainDetails": {
-				"DnnName": "internet",
-				"UeDnnQos": {"DnnMbrUplink": 100000, "DnnMbrDownlink": 50000, "TrafficClass": {"Qci": 9, "Arp": 6}}
-				},
-				"Imsi": ["123456789123456", "123456789123459", "123456789123460", "123456789123461"]}
-		 ],
+		  "DeviceGroup": [
+			{
+				"Name": "dg1",
+				"IpDomainDetails": [
+					{
+						"DnnName": "internet",
+						"UeDnnQos": {
+							"DnnMbrUplink": 100000,
+							"DnnMbrDownlink": 50000,
+							"TrafficClass": {
+								"Qci": 9,
+								"Arp": 6
+							}
+						}
+					},
+					{
+						"DnnName": "ims",
+						"UeDnnQos": {
+							"DnnMbrUplink": 100000,
+							"DnnMbrDownlink": 50000,
+							"TrafficClass": {
+								"Qci": 5,
+								"Arp": 3
+							}
+						}
+					}
+				],
+				"Imsi": ["123456789123456", "123456789123457", "123456789123458"]
+			}
+		],
 		 "AppFilters": {
 			"PccRuleBase": [{"FlowInfos": [{"FlowDesc": "permit out ip from 8.8.8.8/32 to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule1", "Priority": 15, "Qos": {"Var5qi": 8}},
 						   {"FlowInfos": [{"FlowDesc": "permit out ip from any to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule2", "Priority": 25}]
@@ -115,18 +181,77 @@ var DelData = []byte(`{
 			"Plmn": {"mcc": "208", "mnc": "93"}
 		  },
 		 "DeviceGroup": [
-		 	    {"Name": "dg1", 
-				"IpDomainDetails": {
-				"DnnName": "internet",
-				"UeDnnQos": {"DnnMbrUplink": 100000, "DnnMbrDownlink": 50000, "TrafficClass": {"Qci": 9, "Arp": 6}}
-				},
-				"Imsi": ["123456789123456", "123456789123457", "123456789123458", "123456789123459", "123456789123460"]}
+		 	    {
+					"Name": "dg1",
+					"IpDomainDetails": [
+						{
+							"DnnName": "internet",
+							"UeDnnQos": {
+								"DnnMbrUplink": 100000,
+								"DnnMbrDownlink": 50000,
+								"TrafficClass": {
+									"Qci": 9,
+									"Arp": 6
+								}
+							}
+						},
+						{
+							"DnnName": "ims",
+							"UeDnnQos": {
+								"DnnMbrUplink": 100000,
+								"DnnMbrDownlink": 50000,
+								"TrafficClass": {
+									"Qci": 5,
+									"Arp": 3
+								}
+							}
+						}
+					],
+					"Imsi": [
+						"123456789123456",
+						"123456789123457",
+						"123456789123458",
+						"123456789123459",
+						"123456789123460"
+					]
+				}
 		 ],
 		 "AppFilters": {
-			"PccRuleBase": [{"FlowInfos": [{"FlowDesc": "permit out ip from 8.8.8.8/32 to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule1", "Priority": 15, "Qos": {"Var5qi": 8}},
-						   {"FlowInfos": [{"FlowDesc": "permit out ip from any to assigned", "TosTrafficClass": "IPV4", "FlowDir": 2}], "RuleId": "rule2", "Priority": 25}]
+			"PccRuleBase": [
+				{
+					"FlowInfos": [
+						{
+							"FlowDesc": "permit out ip from 8.8.8.8/32 to assigned",
+							"TosTrafficClass": "IPV4",
+							"FlowDir": 2
+						}
+					],
+					"RuleId": "rule1",
+					"Priority": 15,
+					"Qos": {"Var5qi": 8}
+				},
+				{
+					"FlowInfos": [
+						{
+							"FlowDesc": "permit out ip from any to assigned",
+							"TosTrafficClass": "IPV4",
+							"FlowDir": 2
+						}
+					],
+					"RuleId": "rule2",
+					"Priority": 25
+				}
+			]
 		 },
 		 "OperationType": 2,
-		 "DeletedImsis": ["123456789123456", "123456789123457", "123456789123458", "123456789123459", "123456789123460", "123456789123461"]
+		 "DeletedImsis": [
+			"123456789123456",
+			"123456789123457",
+			"123456789123458",
+			"123456789123459",
+			"123456789123460",
+			"123456789123461"
+		 ]
 		}
-		]}`)
+	]
+}`)

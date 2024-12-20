@@ -80,9 +80,12 @@ func TestUpdatePcfSubscriberPolicyDataUpdate(t *testing.T) {
 		panic(err)
 	}
 	for _, ns := range nrp.NetworkSlice {
+		t.Logf("Updating PCFSubscriberPolicyData for Network Slice: %+v", ns)
+		t.Logf("********* AddUpdatedImsis: %+v", ns.AddUpdatedImsis)
 		PCFTest.UpdatePcfSubscriberPolicyData(ns)
 	}
 	self := pcfContext.PCF_Self()
+	t.Logf("PCF_Self.PcfSubscriberPolicyData: %+v", self.PcfSubscriberPolicyData)
 	assert.Equal(t, len(self.PcfSubscriberPolicyData), 5)
 }
 
