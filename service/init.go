@@ -964,17 +964,32 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 	switch ns.OperationType {
 	case protos.OpType_SLICE_ADD:
 		fallthrough
+	/*case protos.OpType_SLICE_UPDATE:
+	var dnnList []string
+	for _, devgroup := range ns.DeviceGroup {
+		if devgroup.IpDomainDetails != nil || len(devgroup.IpDomainDetails) == 0 {
+			dnnList = append(dnnList, devgroup.IpDomainDetails[0].DnnName)
+		}
+	}
+	if pcfConfig.DnnList == nil {
+		pcfConfig.DnnList = make(map[string][]string)
+	}
+	pcfConfig.DnnList[sliceid] = dnnList*/
+	// C-DAC START
 	case protos.OpType_SLICE_UPDATE:
 		var dnnList []string
 		for _, devgroup := range ns.DeviceGroup {
-			if devgroup.IpDomainDetails != nil || len(devgroup.IpDomainDetails) == 0 {
-				dnnList = append(dnnList, devgroup.IpDomainDetails[0].DnnName)
+			// if devgroup.IpDomainDetails != nil && len(devgroup.IpDomainDetails) > 0 {
+			for _, ipDomain := range devgroup.IpDomainDetails {
+				dnnList = append(dnnList, ipDomain.DnnName)
 			}
+			// }
 		}
 		if pcfConfig.DnnList == nil {
 			pcfConfig.DnnList = make(map[string][]string)
 		}
 		pcfConfig.DnnList[sliceid] = dnnList
+	// C-DAC END
 	case protos.OpType_SLICE_DELETE:
 		delete(pcfConfig.DnnList, sliceid)
 	}
