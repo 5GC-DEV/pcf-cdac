@@ -792,7 +792,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 		logger.GrpcLog.Infoln("Received Slice with OperationType: Add from ConfigPod")
 
 		for _, devgroup := range slice.DeviceGroup {
-			if devgroup.IpDomainDetails == nil || len(devgroup.IpDomainDetails) == 0 {
+			if len(devgroup.IpDomainDetails) == 0 {
 				logger.GrpcLog.Warnf("No IP domain details for device group: %v", devgroup.Name)
 				continue
 			}
@@ -863,7 +863,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 		// Iterate through device groups in the slice
 		for _, devgroup := range slice.DeviceGroup {
 			// Ensure IpDomainDetails exists
-			if devgroup.IpDomainDetails == nil || len(devgroup.IpDomainDetails) == 0 {
+			if len(devgroup.IpDomainDetails) == 0 {
 				logger.GrpcLog.Warnf("No IP domain details for device group: %v", devgroup.Name)
 				continue
 			}
