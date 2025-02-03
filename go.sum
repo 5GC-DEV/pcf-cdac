@@ -1,4 +1,6 @@
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
+github.com/anaswarac-dac/config5g-cdac v0.0.0-20241202102502-e89ac4024fc1 h1:vqvE0Q3xZOcFKJhf2sxA4+WrL3P1MRZqNBy0jS3kd4E=
+github.com/anaswarac-dac/config5g-cdac v0.0.0-20241202102502-e89ac4024fc1/go.mod h1:+q6wPkDPfD9wg3KxL3AKAvIN74DG/54ccY9ff9ZMK0A=
 github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d h1:Byv0BzEl3/e6D5CLfI0j/7hiIEtvGVFPCZ7Ei2oq8iQ=

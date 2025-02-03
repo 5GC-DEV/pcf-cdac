@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
+	protos "github.com/anaswarac-dac/config5g-cdac/proto/sdcoreConfig"
 	"github.com/antihax/optional"
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"
@@ -55,6 +55,19 @@ func setupTest() {
 	}
 }
 
+/*func TestUpdatePcfSubscriberPolicyDataAdd(t *testing.T) {
+	var nrp protos.NetworkSliceResponse
+	err := json.Unmarshal(Data, &nrp)
+	if err != nil {
+		panic(err)
+	}
+	for _, ns := range nrp.NetworkSlice {
+		PCFTest.UpdatePcfSubscriberPolicyData(ns)
+	}
+	self := pcfContext.PCF_Self()
+	assert.Equal(t, len(self.PcfSubscriberPolicyData), 3)
+} */
+// C-DAC
 func TestUpdatePcfSubscriberPolicyDataAdd(t *testing.T) {
 	var nrp protos.NetworkSliceResponse
 	err := json.Unmarshal(Data, &nrp)

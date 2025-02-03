@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/anaswarac-dac/config5g-cdac/proto/client"
+	protos "github.com/anaswarac-dac/config5g-cdac/proto/sdcoreConfig"
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/config5g/proto/client"
-	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	openapiLogger "github.com/omec-project/openapi/logger"
 	"github.com/omec-project/openapi/models"
@@ -480,7 +480,7 @@ func GetBitRateUnit(val int64) (int64, string) {
 	return val, unit
 }
 
-func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
+/*func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRule) {
 	sessionRule = &models.SessionRule{}
 	qos := devGroup.IpDomainDetails.UeDnnQos
 	if qos.TrafficClass != nil {
@@ -497,6 +497,43 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 		Downlink: strconv.FormatInt(dl, 10) + dunit,
 	}
 	return sessionRule
+}*/
+// C-DAC
+func getSessionRules(devGroup *protos.DeviceGroup) map[string]*models.SessionRule {
+	sessionRules := make(map[string]*models.SessionRule)
+
+	// Iterate through each IpDomain in the DeviceGroup
+	for _, ipDomain := range devGroup.IpDomainDetails {
+		if ipDomain == nil || ipDomain.UeDnnQos == nil {
+			logger.GrpcLog.Warnf("Skipping IpDomain in device group %v: Missing UeDnnQos", devGroup.Name)
+			continue
+		}
+
+		// Create a session rule for the DNN
+		sessionRule := &models.SessionRule{}
+		qos := ipDomain.UeDnnQos
+
+		if qos.TrafficClass != nil {
+			sessionRule.AuthDefQos = &models.AuthorizedDefaultQos{
+				Var5qi: qos.TrafficClass.Qci,
+				Arp:    &models.Arp{PriorityLevel: qos.TrafficClass.Arp},
+			}
+		}
+
+		// Convert bitrate units
+		ul, uunit := GetBitRateUnit(qos.DnnMbrUplink)
+		dl, dunit := GetBitRateUnit(qos.DnnMbrDownlink)
+
+		sessionRule.AuthSessAmbr = &models.Ambr{
+			Uplink:   strconv.FormatInt(ul, 10) + uunit,
+			Downlink: strconv.FormatInt(dl, 10) + dunit,
+		}
+
+		// Store session rule in the map with the DNN as the key
+		sessionRules[ipDomain.DnnName] = sessionRule
+	}
+
+	return sessionRules
 }
 
 func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (pccPolicy context.PccPolicy) {
@@ -633,7 +670,7 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 	return false, nil
 }
 
-func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string, sessionrule *models.SessionRule, slice *protos.NetworkSlice) {
+/*func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string, sessionrule *models.SessionRule, slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
 	self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 	policyData := self.PcfSubscriberPolicyData[imsi]
@@ -670,65 +707,220 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
 	}
 	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
+}*/
+// C-DAC
+func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string, sessionrule *models.SessionRule, slice *protos.NetworkSlice) {
+	self := context.PCF_Self()
+	self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
+	policyData := self.PcfSubscriberPolicyData[imsi]
+	policyData.CtxLog = logger.CtxLog.With(logger.FieldSupi, "imsi-"+imsi)
+
+	// Initialize PccPolicy for the slice if not already initialized
+	if policyData.PccPolicy == nil {
+		policyData.PccPolicy = make(map[string]*context.PccPolicy)
+	}
+
+	// If SessionPolicy map for the slice is not initialized, initialize it
+	if policyData.PccPolicy[sliceid] == nil {
+		policyData.PccPolicy[sliceid] = &context.PccPolicy{
+			PccRules:      make(map[string]*models.PccRule),
+			QosDecs:       make(map[string]*models.QosData),
+			TraffContDecs: make(map[string]*models.TrafficControlData),
+			SessionPolicy: make(map[string]*context.SessionPolicy), // Initialize SessionPolicy map
+			IdGenerator:   nil,
+		}
+	}
+
+	// Ensure that the SessionPolicy for the given DNN is initialized
+	if policyData.PccPolicy[sliceid].SessionPolicy[dnn] == nil {
+		policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{
+			SessionRules:           make(map[string]*models.SessionRule),
+			SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
+		}
+	}
+
+	// Allocate a new session rule ID
+	id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
+	if err != nil {
+		logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
+	}
+
+	// Set the session rule ID and store the session rule for the DNN
+	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
+	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
+
+	// Get the PCC rules for the slice and session rule
+	pccPolicy := getPccRules(slice, sessionrule)
+
+	// Store the retrieved PCC rules
+	for index, element := range pccPolicy.PccRules {
+		policyData.PccPolicy[sliceid].PccRules[index] = element
+	}
+	for index, element := range pccPolicy.QosDecs {
+		policyData.PccPolicy[sliceid].QosDecs[index] = element
+	}
+	for index, element := range pccPolicy.TraffContDecs {
+		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+	}
+
+	// Log the policy data for the IMSI
+	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
 }
 
 func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
 	sliceid := slice.Nssai.Sst + slice.Nssai.Sd
 	switch slice.OperationType {
+	/*case protos.OpType_SLICE_ADD:
+	logger.GrpcLog.Infoln("received Slice with OperationType: Add from ConfigPod")
+	for _, devgroup := range slice.DeviceGroup {
+		var sessionrule *models.SessionRule
+		var dnn string
+		if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
+			logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+			continue
+		}
+		dnn = devgroup.IpDomainDetails.DnnName
+		sessionrule = getSessionRule(devgroup)
+		for _, imsi := range devgroup.Imsi {
+			pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+		}
+	}
+	*/
+	// C-DAC
 	case protos.OpType_SLICE_ADD:
-		logger.GrpcLog.Infoln("received Slice with OperationType: Add from ConfigPod")
+		logger.GrpcLog.Infoln("Received Slice with OperationType: Add from ConfigPod")
+
 		for _, devgroup := range slice.DeviceGroup {
-			var sessionrule *models.SessionRule
-			var dnn string
-			if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
-				logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+			if devgroup.IpDomainDetails == nil || len(devgroup.IpDomainDetails) == 0 {
+				logger.GrpcLog.Warnf("No IP domain details for device group: %v", devgroup.Name)
 				continue
 			}
-			dnn = devgroup.IpDomainDetails.DnnName
-			sessionrule = getSessionRule(devgroup)
-			for _, imsi := range devgroup.Imsi {
-				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+
+			// Get session rules for all DNNs in this device group
+			sessionRules := getSessionRules(devgroup)
+
+			for _, ipDomain := range devgroup.IpDomainDetails { // Iterate through multiple IpDomain entries
+				if ipDomain == nil || ipDomain.UeDnnQos == nil {
+					logger.GrpcLog.Warnf("IP details or QoS details not available in IP domain for device group: %v", devgroup.Name)
+					continue
+				}
+
+				dnn := ipDomain.DnnName
+
+				// Extract the specific session rule for this DNN
+				sessionrule, exists := sessionRules[dnn]
+				if !exists {
+					logger.GrpcLog.Warnf("No session rule found for DNN: %v in device group: %v", dnn, devgroup.Name)
+					continue
+				}
+
+				for _, imsi := range devgroup.Imsi {
+					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+				}
 			}
 		}
+	/*case protos.OpType_SLICE_UPDATE:
+	logger.GrpcLog.Infoln("received Slice with OperationType: Update from ConfigPod")
+	for _, devgroup := range slice.DeviceGroup {
+		var sessionrule *models.SessionRule
+		var dnn string
+		if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
+			logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+			continue
+		}
 
+		dnn = devgroup.IpDomainDetails.DnnName
+		sessionrule = getSessionRules(devgroup)
+		for _, imsi := range devgroup.Imsi {
+			pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+		}
+	}
+
+	for _, imsi := range slice.DeletedImsis {
+		policyData, ok := self.PcfSubscriberPolicyData[imsi]
+		if !ok {
+			logger.GrpcLog.Warnf("imsi: %v not exist in SubscriberPolicyData", imsi)
+			continue
+		}
+		_, ok = policyData.PccPolicy[sliceid]
+		if !ok {
+			logger.GrpcLog.Errorf("PccPolicy for the slice: %v not exist in SubscriberPolicyData", sliceid)
+			continue
+		}
+		// sessionrules, pccrules if exist in slice, implicitly deletes all sessionrules, pccrules for this sliceid
+		policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
+		delete(policyData.PccPolicy, sliceid)
+		if len(policyData.PccPolicy) == 0 {
+			policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
+			delete(self.PcfSubscriberPolicyData, imsi)
+		}
+	}
+	*/
+	// C-DAC
 	case protos.OpType_SLICE_UPDATE:
 		logger.GrpcLog.Infoln("received Slice with OperationType: Update from ConfigPod")
+		// Iterate through device groups in the slice
 		for _, devgroup := range slice.DeviceGroup {
-			var sessionrule *models.SessionRule
-			var dnn string
-			if devgroup.IpDomainDetails == nil || devgroup.IpDomainDetails.UeDnnQos == nil {
-				logger.GrpcLog.Warnf("ip details or qos details in ipdomain not exist for device group: %v", devgroup.Name)
+			// Ensure IpDomainDetails exists
+			if devgroup.IpDomainDetails == nil || len(devgroup.IpDomainDetails) == 0 {
+				logger.GrpcLog.Warnf("No IP domain details for device group: %v", devgroup.Name)
 				continue
 			}
 
-			dnn = devgroup.IpDomainDetails.DnnName
-			sessionrule = getSessionRule(devgroup)
-			for _, imsi := range devgroup.Imsi {
-				pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+			// Loop through each IpDomain in the DeviceGroup
+			for _, ipDomain := range devgroup.IpDomainDetails {
+				// Check if UeDnnQos exists in the IpDomain
+				if ipDomain == nil || ipDomain.UeDnnQos == nil {
+					logger.GrpcLog.Warnf("IP details or QoS details not available in IP domain for device group: %v", devgroup.Name)
+					continue
+				}
+
+				// Get the DNN from the IpDomain
+				dnn := ipDomain.DnnName
+
+				// Get the session rules map from getSessionRules (returning rules for all DNNs in this device group)
+				sessionRules := getSessionRules(devgroup)
+
+				// Extract the specific session rule for the current DNN
+				sessionrule, exists := sessionRules[dnn]
+				if !exists {
+					logger.GrpcLog.Warnf("No session rule found for DNN: %v in device group: %v", dnn, devgroup.Name)
+					continue
+				}
+
+				// Iterate through IMSIs and create policy data
+				for _, imsi := range devgroup.Imsi {
+					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
+				}
 			}
 		}
 
+		// Handle IMSIs to be deleted from policy data
 		for _, imsi := range slice.DeletedImsis {
 			policyData, ok := self.PcfSubscriberPolicyData[imsi]
 			if !ok {
-				logger.GrpcLog.Warnf("imsi: %v not exist in SubscriberPolicyData", imsi)
+				logger.GrpcLog.Warnf("IMSI: %v not found in SubscriberPolicyData", imsi)
 				continue
 			}
+
+			// Check if PccPolicy exists for the slice
 			_, ok = policyData.PccPolicy[sliceid]
 			if !ok {
-				logger.GrpcLog.Errorf("PccPolicy for the slice: %v not exist in SubscriberPolicyData", sliceid)
+				logger.GrpcLog.Errorf("PccPolicy for the slice: %v does not exist in SubscriberPolicyData", sliceid)
 				continue
 			}
-			// sessionrules, pccrules if exist in slice, implicitly deletes all sessionrules, pccrules for this sliceid
-			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
+
+			// Delete session rules and PCC rules for this sliceid
+			policyData.CtxLog.Infof("Slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
+
+			// If no remaining PccPolicy exists, delete the IMSI entry
 			if len(policyData.PccPolicy) == 0 {
-				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
+				policyData.CtxLog.Infof("Subscriber deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
-
 	case protos.OpType_SLICE_DELETE:
 		logger.GrpcLog.Infoln("received Slice with OperationType: Delete from ConfigPod")
 		for _, imsi := range slice.DeletedImsis {
@@ -752,7 +944,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	}
 }
 
-func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
+/*func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
 	pcfContext := context.PCF_Self()
 	pcfConfig := factory.PcfConfig.Configuration
@@ -793,6 +985,65 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 			}
 		}
 	}
+	logger.GrpcLog.Infof("DnnList Present in PCF: %v", pcfContext.DnnList)
+}*/
+// C-DAC
+func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
+	sliceid := ns.Nssai.Sst + ns.Nssai.Sd
+	pcfContext := context.PCF_Self()
+	pcfConfig := factory.PcfConfig.Configuration
+
+	switch ns.OperationType {
+	case protos.OpType_SLICE_ADD, protos.OpType_SLICE_UPDATE:
+		var dnnList []string
+		for _, devgroup := range ns.DeviceGroup {
+			if devgroup.IpDomainDetails != nil {
+				// Iterate over all IpDomainDetails to access DnnName
+				for _, ipDomain := range devgroup.IpDomainDetails {
+					if ipDomain != nil && ipDomain.DnnName != "" {
+						dnnList = append(dnnList, ipDomain.DnnName)
+					}
+				}
+			}
+		}
+
+		// Initialize DnnList if not already initialized
+		if pcfConfig.DnnList == nil {
+			pcfConfig.DnnList = make(map[string][]string)
+		}
+
+		// Update DnnList for the current slice ID
+		pcfConfig.DnnList[sliceid] = dnnList
+
+	case protos.OpType_SLICE_DELETE:
+		// Delete the DnnList for the current slice ID
+		delete(pcfConfig.DnnList, sliceid)
+	}
+
+	// Log the updated DnnList for the slice
+	s := fmt.Sprintf("Updated Slice level DnnList[%v]: ", sliceid)
+	for _, dnn := range pcfConfig.DnnList[sliceid] {
+		s += fmt.Sprintf("%v ", dnn)
+	}
+	logger.GrpcLog.Infoln(s)
+
+	// Update the global DnnList in PCF
+	pcfContext.DnnList = nil
+	for _, slice := range pcfConfig.DnnList {
+		for _, dnn := range slice {
+			var found bool
+			for _, d := range pcfContext.DnnList {
+				if d == dnn {
+					found = true
+				}
+			}
+			if !found {
+				pcfContext.DnnList = append(pcfContext.DnnList, dnn)
+			}
+		}
+	}
+
+	// Log the final DnnList in PCF
 	logger.GrpcLog.Infof("DnnList Present in PCF: %v", pcfContext.DnnList)
 }
 
