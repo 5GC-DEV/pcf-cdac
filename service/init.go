@@ -718,6 +718,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	// Initialize PccPolicy for the slice if not already initialized
 	if policyData.PccPolicy == nil {
 		policyData.PccPolicy = make(map[string]*context.PccPolicy)
+		logger.GrpcLog.Infof("Initialized PccPolicy map for IMSI: %s", imsi)
 	}
 
 	// If SessionPolicy map for the slice is not initialized, initialize it
@@ -729,6 +730,9 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 			SessionPolicy: make(map[string]*context.SessionPolicy), // Initialize SessionPolicy map
 			IdGenerator:   nil,
 		}
+		logger.GrpcLog.Infof("Created new PccPolicy for Slice: %s, IMSI: %s", sliceid, imsi)
+	} else {
+		logger.GrpcLog.Infof("Slice: %s already exists for IMSI: %s", sliceid, imsi)
 	}
 
 	// Ensure that the SessionPolicy for the given DNN is initialized
@@ -737,6 +741,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 			SessionRules:           make(map[string]*models.SessionRule),
 			SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
 		}
+		logger.GrpcLog.Infof("Created new SessionPolicy for DNN: %s in Slice: %s, IMSI: %s", dnn, sliceid, imsi)
 	}
 
 	// Allocate a new session rule ID
@@ -748,6 +753,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	// Set the session rule ID and store the session rule for the DNN
 	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
+	logger.GrpcLog.Infof("Added new SessionRule [%s] for DNN: %s in Slice: %s, IMSI: %s", sessionrule.SessRuleId, dnn, sliceid, imsi)
 
 	// Get the PCC rules for the slice and session rule
 	pccPolicy := getPccRules(slice, sessionrule)
@@ -765,6 +771,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 
 	// Log the policy data for the IMSI
 	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
+	logger.GrpcLog.Infof("Final Policy Data for IMSI: %s -> Slice: %s -> DNN: %s: %v", imsi, sliceid, dnn, policyData)
 }
 
 func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
@@ -891,6 +898,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 
 				// Iterate through IMSIs and create policy data
 				for _, imsi := range devgroup.Imsi {
+					logger.GrpcLog.Infof("IMSI: %v sliceid: %v DNN: %v Sessionrule: %v slice: %v", imsi, sliceid, dnn, sessionrule, slice)
 					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 				}
 			}

@@ -43,7 +43,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	header http.Header, response *models.SmPolicyDecision, problemDetails *models.ProblemDetails,
 ) {
 	var err error
-	logger.SMpolicylog.Debugln("handle Create SM Policy Request")
+	logger.SMpolicylog.Infoln("handle Create SM Policy Request")
 
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
 		problemDetail := util.GetProblemDetail("Errorneous/Missing Mandotory IE", util.ERROR_INITIAL_PARAMETERS)
@@ -137,6 +137,16 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
 				return nil, nil, &problemDetail
 			}
+			/*if _, exist := PccPolicy.SessionPolicy[request.Dnn]; !exist {
+							// If the Dnn doesn't exist, create a new policy for it
+							PccPolicy.SessionPolicy[request.Dnn] = &context.SessionPolicy{
+								SessionRules: make(map[string]*models.SessionRule),
+							}
+						}
+						sessPolicy := PccPolicy.SessionPolicy[request.Dnn]
+			        	for _, sessRule := range sessPolicy.SessionRules {
+			            	decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
+			        	}*/
 
 			for key, pccRule := range PccPolicy.PccRules {
 				decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
