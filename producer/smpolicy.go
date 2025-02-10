@@ -147,16 +147,21 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			        	for _, sessRule := range sessPolicy.SessionRules {
 			            	decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
 			        	}*/
-
 			for key, pccRule := range PccPolicy.PccRules {
 				decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
 			}
-
-			for key, qosData := range PccPolicy.QosDecs {
+			/*for key, qosData := range PccPolicy.QosDecs {
 				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+			}*/
+			for _, qosMap := range PccPolicy.QosDecs { // Ignores `dnnKey`
+				for key, qosData := range qosMap {
+					decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+				}
 			}
-			for key, trafficData := range PccPolicy.TraffContDecs {
-				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
+			for _, traffMap := range PccPolicy.TraffContDecs { //  Iterate over DNN keys
+				for key, trafficData := range traffMap { //  Iterate over individual Traffic Control entries
+					decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
+				}
 			}
 			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
