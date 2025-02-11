@@ -543,6 +543,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
+		logger.GrpcLog.Infof("Incoming prto 5Qi: %d, ARP PC: %v and ARP PL: %v for DNN: %s", pccrule.Qos.Var5Qi, pccrule.Qos.Arp.PC, pccrule.Qos.Arp.PL, sessionRule.SessRuleId)
 		id, err := pccPolicy.IdGenerator.Allocate()
 		if err != nil {
 			logger.GrpcLog.Errorf("IdGenerator allocation failed: %v", err)
@@ -594,6 +595,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			//	pccPolicy.QosDecs = make(map[string]*models.QosData)
 			//}
 			//pccPolicy.QosDecs[qos.QosId] = &qos
+			logger.GrpcLog.Infof("****Assigned QoS: QosId: %s, 5Qi: %d, ARP: %v for DNN: %s", qos.QosId, qos.Var5qi, qos.Arp, sessionRule.SessRuleId)
 		}
 		for _, pflow := range pccrule.FlowInfos {
 			var flow models.FlowInformation
@@ -639,6 +641,8 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		if pccPolicy.QosDecs == nil {
 			pccPolicy.QosDecs = make(map[string]*models.QosData)
 		}
+		logger.GrpcLog.Infof("Assigned QoS: QosId: %s, 5Qi: %d, ARP: %v for DNN: %s", qos.QosId, qos.Var5qi, qos.Arp, sessionRule.SessRuleId)
+		qos.QosId = fmt.Sprintf("%s-%s", sessionRule.SessRuleId, strconv.FormatInt(id, 10))
 		if ok, q := findQosData(pccPolicy.QosDecs, qos, sessionRule.SessRuleId); ok {
 			// if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
 			rule.RefQosData = append(rule.RefQosData, q.QosId)
