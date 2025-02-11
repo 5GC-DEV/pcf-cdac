@@ -629,29 +629,20 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 
 			rule.RefTcData = append(rule.RefTcData, tcData.TcId)
 			if pccPolicy.TraffContDecs == nil {
-				// pccPolicy.TraffContDecs = make(map[string]*models.TrafficControlData)
-				pccPolicy.TraffContDecs = make(map[string]map[string]*models.TrafficControlData)
+				pccPolicy.TraffContDecs = make(map[string]*models.TrafficControlData)
 			}
-			//pccPolicy.TraffContDecs[tcData.TcId] = &tcData
-			pccPolicy.TraffContDecs[slice.Name][tcData.TcId] = &tcData // Correct: Assign within the inner map
+			pccPolicy.TraffContDecs[tcData.TcId] = &tcData
 
 			rule.FlowInfos = append(rule.FlowInfos, flow)
 		}
 		if pccPolicy.QosDecs == nil {
-			// pccPolicy.QosDecs = make(map[string]*models.QosData)
-			pccPolicy.QosDecs = make(map[string]map[string]*models.QosData)
+			pccPolicy.QosDecs = make(map[string]*models.QosData)
 		}
-		/*if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
+		if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
 			rule.RefQosData = append(rule.RefQosData, q.QosId)
 		} else {
 			rule.RefQosData = append(rule.RefQosData, qos.QosId)
 			pccPolicy.QosDecs[qos.QosId] = &qos
-		}*/
-		if ok, q := findQosData(pccPolicy.QosDecs[slice.Name], qos); ok { // Pass only the relevant DNN's QoS map
-			rule.RefQosData = append(rule.RefQosData, q.QosId)
-		} else {
-			rule.RefQosData = append(rule.RefQosData, qos.QosId)
-			pccPolicy.QosDecs[slice.Name][qos.QosId] = &qos
 		}
 		if pccPolicy.PccRules == nil {
 			pccPolicy.PccRules = make(map[string]*models.PccRule)
@@ -804,25 +795,12 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	}
 
 	// If SessionPolicy map for the slice is not initialized, initialize it
-	/*if _, exists := policyData.PccPolicy[sliceid]; !exists {
+	if _, exists := policyData.PccPolicy[sliceid]; !exists {
 		policyData.PccPolicy[sliceid] = &context.PccPolicy{
 			PccRules:      make(map[string]*models.PccRule),
 			QosDecs:       make(map[string]*models.QosData),
 			TraffContDecs: make(map[string]*models.TrafficControlData),
 			SessionPolicy: make(map[string]*context.SessionPolicy), // Initialize SessionPolicy map
-			IdGenerator:   nil,
-		}
-		logger.GrpcLog.Infof("Created new PccPolicy for Slice: %s, IMSI: %s", sliceid, imsi)
-	} else {
-		logger.GrpcLog.Infof("Slice: %s already exists for IMSI: %s", sliceid, imsi)
-	}*/
-	// If SessionPolicy map for the slice is not initialized, initialize it
-	if _, exists := policyData.PccPolicy[sliceid]; !exists {
-		policyData.PccPolicy[sliceid] = &context.PccPolicy{
-			PccRules:      make(map[string]*models.PccRule),
-			QosDecs:       make(map[string]map[string]*models.QosData),            // Correct: Nested map
-			TraffContDecs: make(map[string]map[string]*models.TrafficControlData), // Correct: Nested map
-			SessionPolicy: make(map[string]*context.SessionPolicy),
 			IdGenerator:   nil,
 		}
 		logger.GrpcLog.Infof("Created new PccPolicy for Slice: %s, IMSI: %s", sliceid, imsi)
@@ -856,7 +834,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	pccPolicy := getPccRules(slice, sessionrule)
 
 	// Store the retrieved PCC rules
-	/*for index, element := range pccPolicy.PccRules {
+	for index, element := range pccPolicy.PccRules {
 		policyData.PccPolicy[sliceid].PccRules[index] = element
 	}
 	for index, element := range pccPolicy.QosDecs {
@@ -864,40 +842,6 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	}
 	for index, element := range pccPolicy.TraffContDecs {
 		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
-	}*/
-	// Store the retrieved PCC rules
-	for index, element := range pccPolicy.PccRules {
-		policyData.PccPolicy[sliceid].PccRules[index] = element
-	}
-
-	// Ensure the DNN map exists inside `QosDecs`
-	if policyData.PccPolicy[sliceid].QosDecs == nil {
-		policyData.PccPolicy[sliceid].QosDecs = make(map[string]map[string]*models.QosData) // Outer map key: DNN
-	}
-	if policyData.PccPolicy[sliceid].QosDecs[dnn] == nil {
-		policyData.PccPolicy[sliceid].QosDecs[dnn] = make(map[string]*models.QosData) // Inner map key: Qos Index
-	}
-
-	// Store QoS data per DNN
-	for dnnKey, qosMap := range pccPolicy.QosDecs { // Iterate over DNN keys
-		for qosIndex, qosValue := range qosMap { // Iterate over individual QoS entries
-			policyData.PccPolicy[sliceid].QosDecs[dnnKey][qosIndex] = qosValue
-		}
-	}
-
-	// Ensure the DNN map exists inside `TraffContDecs`
-	if policyData.PccPolicy[sliceid].TraffContDecs == nil {
-		policyData.PccPolicy[sliceid].TraffContDecs = make(map[string]map[string]*models.TrafficControlData) // Outer map key: DNN
-	}
-	if policyData.PccPolicy[sliceid].TraffContDecs[dnn] == nil {
-		policyData.PccPolicy[sliceid].TraffContDecs[dnn] = make(map[string]*models.TrafficControlData) // Inner map key: Traffic Control Index
-	}
-
-	// Store Traffic Control Data per DNN
-	for dnnKey, traffMap := range pccPolicy.TraffContDecs { // Iterate over DNNs
-		for traffIndex, traffValue := range traffMap { //  Iterate over individual Traffic Control entries
-			policyData.PccPolicy[sliceid].TraffContDecs[dnnKey][traffIndex] = traffValue
-		}
 	}
 
 	// Log the policy data for the IMSI

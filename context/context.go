@@ -79,12 +79,10 @@ type SessionPolicy struct {
 }
 
 type PccPolicy struct {
-	PccRules map[string]*models.PccRule
-	// QosDecs       map[string]*models.QosData
-	QosDecs map[string]map[string]*models.QosData // New: Outer map key is DNN
-	// TraffContDecs map[string]*models.TrafficControlData
-	TraffContDecs map[string]map[string]*models.TrafficControlData // 🔹 Outer key = DNN, Inner key = Traffic Control Index
-	SessionPolicy map[string]*SessionPolicy                        // dnn is key
+	PccRules      map[string]*models.PccRule
+	QosDecs       map[string]*models.QosData
+	TraffContDecs map[string]*models.TrafficControlData
+	SessionPolicy map[string]*SessionPolicy // dnn is key
 	IdGenerator   *idgenerator.IDGenerator
 }
 type PcfSubscriberPolicyData struct {
@@ -406,36 +404,17 @@ func (subs PcfSubscriberPolicyData) String() string {
 				s += fmt.Sprintf("FlowInfo[%v]: FlowDesc: %v, TrafficClass: %v, FlowDir: %v", i, flow.FlowDescription, flow.TosTrafficClass, flow.FlowDirection)
 			}
 		}
-		/*for i, qos := range val.QosDecs {
+		for i, qos := range val.QosDecs {
 			s += fmt.Sprintf("\n   QosDecs[%v] ", i)
 			s += fmt.Sprintf("QosId: %v, 5Qi: %v, MaxbrUl: %v, MaxbrDl: %v, GbrUl: %v, GbrUl: %v,PL: %v ", qos.QosId, qos.Var5qi, qos.MaxbrUl, qos.MaxbrDl, qos.GbrDl, qos.GbrUl, qos.PriorityLevel)
 			if qos.Arp != nil {
 				s += fmt.Sprintf("PL: %v, PC: %v, PV: %v", qos.Arp.PriorityLevel, qos.Arp.PreemptCap, qos.Arp.PreemptVuln)
 			}
-		}*/
-		for dnn, qosMap := range val.QosDecs { //  Iterate over DNN keys first
-			s += fmt.Sprintf("\n   DNN[%v] QosDecs: ", dnn)
-			for i, qos := range qosMap { // Then iterate over QoS entries
-				s += fmt.Sprintf("\n      QosDecs[%v] ", i)
-				s += fmt.Sprintf("QosId: %v, 5Qi: %v, MaxbrUl: %v, MaxbrDl: %v, GbrUl: %v, GbrDl: %v, PL: %v ",
-					qos.QosId, qos.Var5qi, qos.MaxbrUl, qos.MaxbrDl, qos.GbrUl, qos.GbrDl, qos.PriorityLevel)
-				if qos.Arp != nil {
-					s += fmt.Sprintf("PL: %v, PC: %v, PV: %v", qos.Arp.PriorityLevel, qos.Arp.PreemptCap, qos.Arp.PreemptVuln)
-				}
-			}
 		}
-		/*for i, tr := range val.TraffContDecs {
+		for i, tr := range val.TraffContDecs {
 			s += fmt.Sprintf("\n   TrafficDecs[%v]: ", i)
 			s += fmt.Sprintf("TcId: %v, FlowStatus: %v", tr.TcId, tr.FlowStatus)
-		}*/
-		for dnnKey, traffMap := range val.TraffContDecs { // First loop through DNNs
-			s += fmt.Sprintf("\n   DNN[%v] TrafficDecs:", dnnKey)
-			for i, tr := range traffMap { // Then loop through individual Traffic Control entries
-				s += fmt.Sprintf("\n      TrafficDecs[%v]: ", i)
-				s += fmt.Sprintf("TcId: %v, FlowStatus: %v", tr.TcId, tr.FlowStatus)
-			}
 		}
-
 	}
 	return s
 }
@@ -504,7 +483,7 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 				}
 			}
 			logger.CtxLog.Infof("   Qos Details")
-			/*for _, qos := range val.QosDecs {
+			for _, qos := range val.QosDecs {
 				logger.CtxLog.Infof("     QosId: %v", qos.QosId)
 				logger.CtxLog.Infof("     5qi: %v", qos.Var5qi)
 				logger.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
@@ -516,37 +495,13 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 					logger.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
 					logger.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
 				}
-			}*/
-			for dnn, qosMap := range val.QosDecs { // First loop through DNNs
-				logger.CtxLog.Infof("DNN: %v", dnn)
-				for _, qos := range qosMap { // Then loop through QoS entries
-					logger.CtxLog.Infof("     QosId: %v", qos.QosId)
-					logger.CtxLog.Infof("     5qi: %v", qos.Var5qi)
-					logger.CtxLog.Infof("     MaxbrUl: %v", qos.MaxbrUl)
-					logger.CtxLog.Infof("     MaxbrDl: %v", qos.MaxbrDl)
-					logger.CtxLog.Infof("     GbrDl: %v", qos.GbrDl)
-					logger.CtxLog.Infof("     GbrUl: %v", qos.GbrUl)
-					logger.CtxLog.Infof("     PriorityLevel: %v", qos.PriorityLevel)
-					if qos.Arp != nil {
-						logger.CtxLog.Infof("    Arp.PreemptCapability: %v", qos.Arp.PreemptCap)
-						logger.CtxLog.Infof("    Arp.PreemptVulnerability: %v", qos.Arp.PreemptVuln)
-					}
-				}
 			}
 
 			logger.CtxLog.Infof("   Traffic Control Details")
-			/*for _, t := range val.TraffContDecs {
+			for _, t := range val.TraffContDecs {
 				logger.CtxLog.Infof("     TcId: %v", t.TcId)
 				logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
-			}*/
-			for dnnKey, traffMap := range val.TraffContDecs { // First loop through DNNs
-				logger.CtxLog.Infof("DNN: %v", dnnKey)
-				for _, t := range traffMap { // Then loop through individual Traffic Control entries
-					logger.CtxLog.Infof("     TcId: %v", t.TcId)
-					logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
-				}
 			}
-
 		}
 	}
 }
