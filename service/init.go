@@ -543,7 +543,15 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
-		logger.GrpcLog.Infof("Incoming prto 5Qi: %d, ARP PC: %v and ARP PL: %v for DNN: %s", pccrule.Qos.Var5Qi, pccrule.Qos.Arp.PC, pccrule.Qos.Arp.PL, sessionRule.SessRuleId)
+		if pccrule.Qos != nil {
+			if pccrule.Qos.Arp != nil {
+				logger.GrpcLog.Infof("Incoming proto 5Qi: %d, ARP PL: %v for DNN: %s",
+					pccrule.Qos.Var5Qi, pccrule.Qos.Arp.PL, sessionRule.SessRuleId)
+			} else {
+				logger.GrpcLog.Infof("Incoming proto 5Qi: %d, ARP is nil for DNN: %s",
+					pccrule.Qos.Var5Qi, sessionRule.SessRuleId)
+			}
+		}
 		id, err := pccPolicy.IdGenerator.Allocate()
 		if err != nil {
 			logger.GrpcLog.Errorf("IdGenerator allocation failed: %v", err)
