@@ -638,7 +638,8 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		if pccPolicy.QosDecs == nil {
 			pccPolicy.QosDecs = make(map[string]*models.QosData)
 		}
-		if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
+		if ok, q := findQosData(pccPolicy.QosDecs, qos, sessionRule.SessRuleId); ok {
+			//if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
 			rule.RefQosData = append(rule.RefQosData, q.QosId)
 		} else {
 			rule.RefQosData = append(rule.RefQosData, qos.QosId)
@@ -653,8 +654,27 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 	return
 }
 
-func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {
+/*
+	func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {
+		for _, q := range qosdecs {
+			if q.Var5qi == qos.Var5qi && q.MaxbrUl == qos.MaxbrUl && q.MaxbrDl == qos.MaxbrDl &&
+				q.GbrUl == qos.GbrUl && q.GbrDl == qos.GbrDl && q.Qnc == qos.Qnc &&
+				q.PriorityLevel == qos.PriorityLevel && q.AverWindow == qos.AverWindow &&
+				q.MaxDataBurstVol == qos.MaxDataBurstVol && q.ReflectiveQos == qos.ReflectiveQos &&
+				q.SharingKeyDl == qos.SharingKeyDl && q.SharingKeyUl == qos.SharingKeyUl &&
+				q.MaxPacketLossRateDl == qos.MaxPacketLossRateDl && q.MaxPacketLossRateUl == qos.MaxPacketLossRateUl &&
+				q.DefQosFlowIndication == qos.DefQosFlowIndication {
+				if q.Arp != nil && qos.Arp != nil && *q.Arp == *qos.Arp {
+					return true, q
+				}
+			}
+		}
+		return false, nil
+	}
+*/
+func findQosData(qosdecs map[string]*models.QosData, qos models.QosData, sessionruleid string) (bool, *models.QosData) {
 	for _, q := range qosdecs {
+		// Ensure comparison includes DNN differentiation
 		if q.Var5qi == qos.Var5qi && q.MaxbrUl == qos.MaxbrUl && q.MaxbrDl == qos.MaxbrDl &&
 			q.GbrUl == qos.GbrUl && q.GbrDl == qos.GbrDl && q.Qnc == qos.Qnc &&
 			q.PriorityLevel == qos.PriorityLevel && q.AverWindow == qos.AverWindow &&
@@ -662,11 +682,15 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 			q.SharingKeyDl == qos.SharingKeyDl && q.SharingKeyUl == qos.SharingKeyUl &&
 			q.MaxPacketLossRateDl == qos.MaxPacketLossRateDl && q.MaxPacketLossRateUl == qos.MaxPacketLossRateUl &&
 			q.DefQosFlowIndication == qos.DefQosFlowIndication {
-			if q.Arp != nil && qos.Arp != nil && *q.Arp == *qos.Arp {
+
+			// Check if ARP matches
+			if (q.Arp != nil && qos.Arp != nil && *q.Arp == *qos.Arp) || (q.Arp == nil && qos.Arp == nil) {
+				logger.GrpcLog.Infof("Matching QosData found for DNN: %s with QosId: %s", sessionruleid, q.QosId)
 				return true, q
 			}
 		}
 	}
+	logger.GrpcLog.Infof("No matching QosData found for DNN: %s, creating new entry.", sessionruleid)
 	return false, nil
 }
 
