@@ -875,7 +875,12 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	for index, element := range pccPolicy.PccRules {
 		policyData.PccPolicy[sliceid].PccRules[index] = element
 	}
-
+	logger.GrpcLog.Infof("Processing PCC Policy QoS Data for Slice: %s, IMSI: %s", sliceid, imsi)
+	for dnnKey, qosMap := range pccPolicy.QosDecs {
+		for qosIndex, qosValue := range qosMap {
+			logger.GrpcLog.Infof("Incoming QoS for DNN [%s]: QosId: [%s], 5QI: [%d]", dnnKey, qosIndex, qosValue.Var5qi)
+		}
+	}
 	// Ensure the DNN map exists inside `QosDecs`
 	if policyData.PccPolicy[sliceid].QosDecs == nil {
 		policyData.PccPolicy[sliceid].QosDecs = make(map[string]map[string]*models.QosData) // Outer map key: DNN
@@ -883,18 +888,17 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	if policyData.PccPolicy[sliceid].QosDecs[dnn] == nil {
 		policyData.PccPolicy[sliceid].QosDecs[dnn] = make(map[string]*models.QosData) // Inner map key: Qos Index
 	}
-
-	// Store QoS data per DNN
-	for dnnKey, qosMap := range pccPolicy.QosDecs { // Iterate over DNN keys
-		// Ensure the inner map exists before assigning values
-		if policyData.PccPolicy[sliceid].QosDecs[dnnKey] == nil {
-			policyData.PccPolicy[sliceid].QosDecs[dnnKey] = make(map[string]*models.QosData) // Initialize inner map
+	// Iterate over the received QoS data and correctly store it per DNN
+	for dnnKey, qosMap := range pccPolicy.QosDecs {
+		// Fix: Ensure `dnnKey` is mapped correctly
+		if _, exists := policyData.PccPolicy[sliceid].QosDecs[dnnKey]; !exists {
+			policyData.PccPolicy[sliceid].QosDecs[dnnKey] = make(map[string]*models.QosData)
 		}
-		for qosIndex, qosValue := range qosMap { // Iterate over individual QoS entries
+		for qosIndex, qosValue := range qosMap {
 			policyData.PccPolicy[sliceid].QosDecs[dnnKey][qosIndex] = qosValue
+			logger.GrpcLog.Infof("Stored QoS for DNN [%s]: QosId: [%s], 5QI: [%d]", dnnKey, qosIndex, qosValue.Var5qi)
 		}
 	}
-
 	// Ensure the DNN map exists inside `TraffContDecs`
 	if policyData.PccPolicy[sliceid].TraffContDecs == nil {
 		policyData.PccPolicy[sliceid].TraffContDecs = make(map[string]map[string]*models.TrafficControlData) // Outer map key: DNN
