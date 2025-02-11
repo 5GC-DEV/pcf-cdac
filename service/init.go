@@ -552,7 +552,8 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		rule.PccRuleId = strconv.FormatInt(id, 10)
 		rule.Precedence = pccrule.Priority
 		if pccrule.Qos != nil {
-			qos.QosId = strconv.FormatInt(id, 10)
+			// qos.QosId = strconv.FormatInt(id, 10)
+			qos.QosId = fmt.Sprintf("%s-%s", sessionRule.SessRuleId, strconv.FormatInt(id, 10))
 			qos.Var5qi = pccrule.Qos.Var5Qi
 			if pccrule.Qos.MaxbrUl != 0 {
 				ul, unit := GetBitRateUnit(int64(pccrule.Qos.MaxbrUl))
