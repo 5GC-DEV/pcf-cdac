@@ -435,6 +435,7 @@ func (subs PcfSubscriberPolicyData) String() string {
 				s += fmt.Sprintf("TcId: %v, FlowStatus: %v", tr.TcId, tr.FlowStatus)
 			}
 		}
+
 	}
 	return s
 }
@@ -545,6 +546,7 @@ func (c *PCFContext) DisplayPcfSubscriberPolicyData(imsi string) {
 					logger.CtxLog.Infof("     FlowStatus: %v", t.FlowStatus)
 				}
 			}
+
 		}
 	}
 }
