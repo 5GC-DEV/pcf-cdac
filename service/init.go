@@ -639,7 +639,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			pccPolicy.QosDecs = make(map[string]*models.QosData)
 		}
 		if ok, q := findQosData(pccPolicy.QosDecs, qos, sessionRule.SessRuleId); ok {
-			//if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
+			// if ok, q := findQosData(pccPolicy.QosDecs, qos); ok {
 			rule.RefQosData = append(rule.RefQosData, q.QosId)
 		} else {
 			rule.RefQosData = append(rule.RefQosData, qos.QosId)
@@ -682,7 +682,6 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData, session
 			q.SharingKeyDl == qos.SharingKeyDl && q.SharingKeyUl == qos.SharingKeyUl &&
 			q.MaxPacketLossRateDl == qos.MaxPacketLossRateDl && q.MaxPacketLossRateUl == qos.MaxPacketLossRateUl &&
 			q.DefQosFlowIndication == qos.DefQosFlowIndication {
-
 			// Check if ARP matches
 			if (q.Arp != nil && qos.Arp != nil && *q.Arp == *qos.Arp) || (q.Arp == nil && qos.Arp == nil) {
 				logger.GrpcLog.Infof("Matching QosData found for DNN: %s with QosId: %s", sessionruleid, q.QosId)
