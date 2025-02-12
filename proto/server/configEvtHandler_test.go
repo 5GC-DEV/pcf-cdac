@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2023 Open Networking Foundation <info@opennetworking.org>
-//
+// SPDX-FileCopyrightText: 2024 Canonical Ltd
 // SPDX-License-Identifier: Apache-2.0
-//
 
 package server
 
 import (
 	"encoding/json"
+	"os"
+	"os/exec"
 	"reflect"
 	"testing"
 
@@ -17,7 +18,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-var postData []map[string]interface{}
+var (
+	execCommandTimesCalled = 0
+	postData               []map[string]interface{}
+)
 
 func deviceGroup(name string) configmodels.DeviceGroups {
 	traffic_class := configmodels.TrafficClassInfo{
@@ -122,6 +126,58 @@ func (m *MockMongoSliceGetOne) RestfulAPIGetOne(collName string, filter bson.M) 
 	return previousSliceBson, nil
 }
 
+func mockExecCommand(command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestExecCommandHelper", "--", "ENTER YOUR COMMAND HERE"}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	execCommandTimesCalled += 1
+	return cmd
+}
+
+func Test_sendPebbleNotification_on_when_handleNetworkSlicePost(t *testing.T) {
+	execCommand = mockExecCommand
+	defer func() { execCommand = exec.Command }()
+	numPebbleNotificationsSent := execCommandTimesCalled
+	networkSlice := []configmodels.Slice{networkSlice("slice1")}
+	factory.WebUIConfig.Configuration.SendPebbleNotifications = true
+
+	configMsg := configmodels.ConfigMessage{
+		SliceName: networkSlice[0].SliceName,
+		Slice:     &networkSlice[0],
+	}
+	subsUpdateChan := make(chan *Update5GSubscriberMsg, 10)
+	dbadapter.CommonDBClient = &MockMongoPost{dbadapter.CommonDBClient}
+	dbadapter.CommonDBClient = &MockMongoGetOneNil{dbadapter.CommonDBClient}
+	handleNetworkSlicePost(&configMsg, subsUpdateChan)
+
+	if execCommandTimesCalled != numPebbleNotificationsSent+1 {
+		t.Errorf("Unexpected number of Pebble notifications: %v. Should be: %v", execCommandTimesCalled, numPebbleNotificationsSent+1)
+	}
+}
+
+func Test_sendPebbleNotification_off_when_handleNetworkSlicePost(t *testing.T) {
+	execCommand = mockExecCommand
+	defer func() { execCommand = exec.Command }()
+	numPebbleNotificationsSent := execCommandTimesCalled
+	networkSlices := []configmodels.Slice{networkSlice("slice1")}
+	factory.WebUIConfig.Configuration.SendPebbleNotifications = false
+
+	for _, testSlice := range networkSlices {
+		configMsg := configmodels.ConfigMessage{
+			SliceName: testSlice.SliceName,
+			Slice:     &testSlice,
+		}
+		subsUpdateChan := make(chan *Update5GSubscriberMsg, 10)
+		dbadapter.CommonDBClient = &MockMongoPost{dbadapter.CommonDBClient}
+		dbadapter.CommonDBClient = &MockMongoGetOneNil{dbadapter.CommonDBClient}
+		handleNetworkSlicePost(&configMsg, subsUpdateChan)
+	}
+
+	if execCommandTimesCalled != numPebbleNotificationsSent {
+		t.Errorf("Unexpected number of Pebble notifications: %v. Should be: %v", execCommandTimesCalled, numPebbleNotificationsSent)
+	}
+}
+
 func Test_handleDeviceGroupPost(t *testing.T) {
 	deviceGroups := []configmodels.DeviceGroups{deviceGroup("group1"), deviceGroup("group2"), deviceGroup("group_no_imsis"), deviceGroup("group_no_traf_class"), deviceGroup("group_no_qos")}
 	deviceGroups[2].Imsis = []string{}
@@ -148,7 +204,7 @@ func Test_handleDeviceGroupPost(t *testing.T) {
 		}
 		var resultGroup configmodels.DeviceGroups
 		var result map[string]interface{} = postData[0]["data"].(map[string]interface{})
-		err := json.Unmarshal(mapToByte(result), &resultGroup)
+		err := json.Unmarshal(configmodels.MapToByte(result), &resultGroup)
 		if err != nil {
 			t.Errorf("Could not unmarshall result %v", result)
 		}
@@ -192,7 +248,7 @@ func Test_handleDeviceGroupPost_alreadyExists(t *testing.T) {
 		}
 		var resultGroup configmodels.DeviceGroups
 		var result map[string]interface{} = postData[0]["data"].(map[string]interface{})
-		err := json.Unmarshal(mapToByte(result), &resultGroup)
+		err := json.Unmarshal(configmodels.MapToByte(result), &resultGroup)
 		if err != nil {
 			t.Errorf("Could not unmarshall result %v", result)
 		}
@@ -261,13 +317,13 @@ func Test_handleNetworkSlicePost(t *testing.T) {
 		if postData[0]["coll"] != expected_collection {
 			t.Errorf("Expected collection %v, got %v", expected_collection, postData[0]["coll"])
 		}
-		expected_filter := bson.M{"SliceName": testSlice.SliceName}
+		expected_filter := bson.M{"slice-name": testSlice.SliceName}
 		if !reflect.DeepEqual(postData[0]["filter"], expected_filter) {
 			t.Errorf("Expected filter %v, got %v", expected_filter, postData[0]["filter"])
 		}
 		var resultSlice configmodels.Slice
 		var result map[string]interface{} = postData[0]["data"].(map[string]interface{})
-		err := json.Unmarshal(mapToByte(result), &resultSlice)
+		err := json.Unmarshal(configmodels.MapToByte(result), &resultSlice)
 		if err != nil {
 			t.Errorf("Could not unmarshal result %v", result)
 		}
@@ -314,13 +370,13 @@ func Test_handleNetworkSlicePost_alreadyExists(t *testing.T) {
 		if postData[0]["coll"] != expected_collection {
 			t.Errorf("Expected collection %v, got %v", expected_collection, postData[0]["coll"])
 		}
-		expected_filter := bson.M{"SliceName": testSlice.SliceName}
+		expected_filter := bson.M{"slice-name": testSlice.SliceName}
 		if !reflect.DeepEqual(postData[0]["filter"], expected_filter) {
 			t.Errorf("Expected filter %v, got %v", expected_filter, postData[0]["filter"])
 		}
 		var resultSlice configmodels.Slice
 		var result map[string]interface{} = postData[0]["data"].(map[string]interface{})
-		err = json.Unmarshal(mapToByte(result), &resultSlice)
+		err = json.Unmarshal(configmodels.MapToByte(result), &resultSlice)
 		if err != nil {
 			t.Errorf("Could not unmarshal result %v", result)
 		}
@@ -423,73 +479,5 @@ func Test_firstConfigReceived_sliceInDB(t *testing.T) {
 	result := firstConfigReceived()
 	if !result {
 		t.Errorf("Expected firstConfigReceived to return true, got %v", result)
-	}
-}
-
-func TestPostGnb(t *testing.T) {
-	gnbName := "some-gnb"
-	newGnb := configmodels.Gnb{
-		Name: gnbName,
-		Tac:  "1233",
-	}
-
-	configMsg := configmodels.ConfigMessage{
-		MsgType:   configmodels.Inventory,
-		MsgMethod: configmodels.Post_op,
-		GnbName:   gnbName,
-		Gnb:       &newGnb,
-	}
-
-	postData = make([]map[string]interface{}, 0)
-	dbadapter.CommonDBClient = &MockMongoPost{}
-	handleGnbPost(&configMsg)
-
-	expected_collection := "webconsoleData.snapshots.gnbData"
-	if postData[0]["coll"] != expected_collection {
-		t.Errorf("Expected collection %v, got %v", expected_collection, postData[0]["coll"])
-	}
-
-	expected_filter := bson.M{"name": gnbName}
-	if !reflect.DeepEqual(postData[0]["filter"], expected_filter) {
-		t.Errorf("Expected filter %v, got %v", expected_filter, postData[0]["filter"])
-	}
-
-	var result map[string]interface{} = postData[0]["data"].(map[string]interface{})
-	if result["tac"] != newGnb.Tac {
-		t.Errorf("Expected port %v, got %v", newGnb.Tac, result["tac"])
-	}
-}
-
-func TestPostUpf(t *testing.T) {
-	upfHostname := "some-upf"
-	newUpf := configmodels.Upf{
-		Hostname: upfHostname,
-		Port:     "1233",
-	}
-
-	configMsg := configmodels.ConfigMessage{
-		MsgType:     configmodels.Inventory,
-		MsgMethod:   configmodels.Post_op,
-		UpfHostname: upfHostname,
-		Upf:         &newUpf,
-	}
-
-	postData = make([]map[string]interface{}, 0)
-	dbadapter.CommonDBClient = &MockMongoPost{}
-	handleUpfPost(&configMsg)
-
-	expected_collection := "webconsoleData.snapshots.upfData"
-	if postData[0]["coll"] != expected_collection {
-		t.Errorf("Expected collection %v, got %v", expected_collection, postData[0]["coll"])
-	}
-
-	expected_filter := bson.M{"hostname": upfHostname}
-	if !reflect.DeepEqual(postData[0]["filter"], expected_filter) {
-		t.Errorf("Expected filter %v, got %v", expected_filter, postData[0]["filter"])
-	}
-
-	var result map[string]interface{} = postData[0]["data"].(map[string]interface{})
-	if result["port"] != newUpf.Port {
-		t.Errorf("Expected port %v, got %v", newUpf.Port, result["port"])
 	}
 }

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2022-present Intel Corporation
-//SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+// SPDX-FileCopyrightText: 2019 free5GC.org
+// SPDX-FileCopyrightText: 2024 Canonical Ltd
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,19 +31,20 @@ type Info struct {
 }
 
 type Configuration struct {
-	WebServer *WebServer  `yaml:"WebServer,omitempty"`
-	Mongodb   *Mongodb    `yaml:"mongodb"`
-	RocEnd    *RocEndpt   `yaml:"managedByConfigPod,omitempty"` // fetch config during bootup
-	LteEnd    []*LteEndpt `yaml:"endpoints,omitempty"`          // LTE endpoints are configured and not auto-detected
-	Mode5G    bool        `yaml:"mode5G,omitempty"`
-	SdfComp   bool        `yaml:"spec-compliant-sdf"`
-	CfgPort   int         `yaml:"cfgport,omitempty"`
+	Mongodb                 *Mongodb    `yaml:"mongodb"`
+	TLS                     *TLS        `yaml:"tls"`
+	RocEnd                  *RocEndpt   `yaml:"managedByConfigPod,omitempty"` // fetch config during bootup
+	LteEnd                  []*LteEndpt `yaml:"endpoints,omitempty"`          // LTE endpoints are configured and not auto-detected
+	Mode5G                  bool        `yaml:"mode5G,omitempty"`
+	SdfComp                 bool        `yaml:"spec-compliant-sdf"`
+	EnableAuthentication    bool        `yaml:"enableAuthentication,omitempty"`
+	SendPebbleNotifications bool        `yaml:"send_pebble_notifications,omitempty"`
+	CfgPort                 int         `yaml:"cfgport,omitempty"`
 }
 
-type WebServer struct {
-	Scheme string `yaml:"scheme"`
-	IP     string `yaml:"ipv4Address"`
-	PORT   string `yaml:"port"`
+type TLS struct {
+	PEM string `yaml:"pem,omitempty"`
+	Key string `yaml:"key,omitempty"`
 }
 
 type Mongodb struct {
@@ -50,6 +52,8 @@ type Mongodb struct {
 	Url            string `yaml:"url,omitempty"`
 	AuthKeysDbName string `yaml:"authKeysDbName"`
 	AuthUrl        string `yaml:"authUrl"`
+	WebuiDBName    string `yaml:"webuiDbName,omitempty"`
+	WebuiDBUrl     string `yaml:"webuiDbUrl,omitempty"`
 }
 
 type RocEndpt struct {

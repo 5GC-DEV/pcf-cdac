@@ -12,26 +12,20 @@ import (
 	"github.com/omec-project/webconsole/backend/logger"
 	"github.com/omec-project/webconsole/backend/webui_service"
 	"github.com/urfave/cli"
-	"go.uber.org/zap"
 )
 
 var WEBUI = &webui_service.WEBUI{}
 
-var appLog *zap.SugaredLogger
-
-func init() {
-	appLog = logger.AppLog
-}
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "webui"
-	appLog.Infoln(app.Name)
-	app.Usage = "-free5gccfg common configuration file -webuicfg webui configuration file"
+	logger.AppLog.Infoln(app.Name)
+	app.Usage = "Web UI"
+	app.UsageText = "webconsole -cfg <webui_config_file.conf>"
 	app.Action = action
 	app.Flags = WEBUI.GetCliCmd()
 	if err := app.Run(os.Args); err != nil {
-		logger.AppLog.Warnf("error args: %v", err)
+		logger.AppLog.Fatalf("error args: %v", err)
 	}
 }
 

@@ -1,7 +1,7 @@
 <!--
-# SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-# Copyright 2019 free5GC.org
-
+SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+Copyright 2019 free5GC.org
+SPDX-FileCopyrightText: 2024 Canonical Ltd.
 SPDX-License-Identifier: Apache-2.0
 -->
 [![Go Report Card](https://goreportcard.com/badge/github.com/omec-project/webconsole)](https://goreportcard.com/report/github.com/omec-project/webconsole)
@@ -17,7 +17,7 @@ features Configuration Service provides APIs for subscriber management.
 4. 5G clients can connect & get complete configuration copy through grpc interface.
 5. 4G clients communicate with Webconsole through REST interface
 
-# UI
+## UI
 
 Webconsole can optionally serve static files, which constitute the frontend part of the application.
 
@@ -34,6 +34,20 @@ http://<webconsole-ip>:5000/
 ```
 
 An example static file has been placed in the `webconsole/ui/frontend_files` directory.
+
+## Authentication and Authorization
+
+The authentication and authorization feature ensures that only verified and authorized users can access the webui resources and interact with the system.
+
+This is an optional feature, disabled by default. For more details, refer to this [file](backend/auth/README.md).
+
+##  MongoDB Transaction Support
+
+This application requires a MongoDB deployment configured to support transactions,
+such as a replica set or a sharded cluster. Standalone MongoDB instances do not
+support transactions and will prevent the application from starting. Please ensure
+your MongoDB instance is properly set up for transactions. For detailed configuration
+instructions, see the [MongoDB Replica Set Documentation](https://www.mongodb.com/docs/kubernetes-operator/current/tutorial/deploy-replica-set/).
 
 ## Webconsole Architecture diagram
 
