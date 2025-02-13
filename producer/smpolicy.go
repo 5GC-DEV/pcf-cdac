@@ -160,6 +160,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			}
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
+				break
 			}
 			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
