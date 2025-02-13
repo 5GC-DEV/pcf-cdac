@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 // SPDX-FileCopyrightText: 2024 Canonical Ltd.
+// SPDX-FileCopyrightText: 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +23,7 @@ import (
 
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
-	"github.com/omec-project/config5g/proto/client"
+	grpcClient "github.com/omec-project/config5g/proto/client"
 	protos "github.com/omec-project/config5g/proto/sdcoreConfig"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	openapiLogger "github.com/omec-project/openapi/logger"
@@ -45,7 +47,6 @@ import (
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
 	utilLogger "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -56,7 +57,7 @@ type PCF struct{}
 type (
 	// Config information.
 	Config struct {
-		pcfcfg string
+		cfg string
 	}
 )
 
@@ -74,19 +75,10 @@ var config Config
 
 var pcfCLi = []cli.Flag{
 	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
+		Name:     "cfg",
+		Usage:    "pcf config file",
+		Required: true,
 	},
-	cli.StringFlag{
-		Name:  "pcfcfg",
-		Usage: "config file",
-	},
-}
-
-var initLog *zap.SugaredLogger
-
-func init() {
-	initLog = logger.InitLog
 }
 
 func (*PCF) GetCliCmd() (flags []cli.Flag) {
@@ -95,17 +87,17 @@ func (*PCF) GetCliCmd() (flags []cli.Flag) {
 
 func (pcf *PCF) Initialize(c *cli.Context) error {
 	config = Config{
-		pcfcfg: c.String("pcfcfg"),
+		cfg: c.String("cfg"),
 	}
-	if config.pcfcfg != "" {
-		if err := factory.InitConfigFactory(config.pcfcfg); err != nil {
-			return err
-		}
-	} else {
-		DefaultPcfConfigPath := path_util.Free5gcPath("free5gc/config/pcfcfg.yaml")
-		if err := factory.InitConfigFactory(DefaultPcfConfigPath); err != nil {
-			return err
-		}
+
+	absPath, err := filepath.Abs(config.cfg)
+	if err != nil {
+		logger.CfgLog.Errorln(err)
+		return err
+	}
+
+	if err := factory.InitConfigFactory(absPath); err != nil {
+		return err
 	}
 
 	pcf.setLogLevel()
@@ -114,39 +106,90 @@ func (pcf *PCF) Initialize(c *cli.Context) error {
 		return err
 	}
 
-	roc := os.Getenv("MANAGED_BY_CONFIG_POD")
-	if roc == "true" {
-		initLog.Infoln("MANAGED_BY_CONFIG_POD is true")
-		gClient := client.ConnectToConfigServer(factory.PcfConfig.Configuration.WebuiUri)
-		commChannel := gClient.PublishOnConfigChange(true)
-		go pcf.UpdateConfig(commChannel)
+	factory.PcfConfig.CfgLocation = absPath
+
+	if os.Getenv("MANAGED_BY_CONFIG_POD") == "true" {
+		logger.InitLog.Infoln("MANAGED_BY_CONFIG_POD is true")
+		go manageGrpcClient(factory.PcfConfig.Configuration.WebuiUri, pcf)
 	} else {
 		go func() {
-			initLog.Infoln("Use helm chart config ")
+			logger.InitLog.Infoln("use helm chart config")
 			ConfigPodTrigger <- true
 		}()
 	}
 	return nil
 }
 
+// manageGrpcClient connects the config pod GRPC server and subscribes the config changes.
+// Then it updates PCF configuration.
+func manageGrpcClient(webuiUri string, pcf *PCF) {
+	var configChannel chan *protos.NetworkSliceResponse
+	var client grpcClient.ConfClient
+	var stream protos.ConfigService_NetworkSliceSubscribeClient
+	var err error
+	count := 0
+	for {
+		if client != nil {
+			if client.CheckGrpcConnectivity() != "ready" {
+				time.Sleep(time.Second * 30)
+				count++
+				if count > 5 {
+					err = client.GetConfigClientConn().Close()
+					if err != nil {
+						logger.InitLog.Infof("failing ConfigClient is not closed properly: %+v", err)
+					}
+					client = nil
+					count = 0
+				}
+				logger.InitLog.Infoln("checking the connectivity readiness")
+				continue
+			}
+
+			if stream == nil {
+				stream, err = client.SubscribeToConfigServer()
+				if err != nil {
+					logger.InitLog.Infof("failing SubscribeToConfigServer: %+v", err)
+					continue
+				}
+			}
+
+			if configChannel == nil {
+				configChannel = client.PublishOnConfigChange(true, stream)
+				logger.InitLog.Infoln("PublishOnConfigChange is triggered")
+				go pcf.UpdateConfig(configChannel)
+				logger.InitLog.Infoln("PCF updateConfig is triggered")
+			}
+		} else {
+			client, err = grpcClient.ConnectToConfigServer(webuiUri)
+			stream = nil
+			configChannel = nil
+			logger.InitLog.Infoln("connecting to config server")
+			if err != nil {
+				logger.InitLog.Errorf("%+v", err)
+			}
+			continue
+		}
+	}
+}
+
 func (pcf *PCF) setLogLevel() {
 	if factory.PcfConfig.Logger == nil {
-		initLog.Warnln("PCF config without log level setting!!!")
+		logger.InitLog.Warnln("PCF config without log level setting")
 		return
 	}
 
 	if factory.PcfConfig.Logger.PCF != nil {
 		if factory.PcfConfig.Logger.PCF.DebugLevel != "" {
 			if level, err := zapcore.ParseLevel(factory.PcfConfig.Logger.PCF.DebugLevel); err != nil {
-				initLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
+				logger.InitLog.Warnf("PCF Log level [%s] is invalid, set to [info] level",
 					factory.PcfConfig.Logger.PCF.DebugLevel)
 				logger.SetLogLevel(zap.InfoLevel)
 			} else {
-				initLog.Infof("PCF Log level is set to [%s] level", level)
+				logger.InitLog.Infof("PCF Log level is set to [%s] level", level)
 				logger.SetLogLevel(level)
 			}
 		} else {
-			initLog.Infoln("PCF Log level is default set to [info] level")
+			logger.InitLog.Infoln("PCF Log level is default set to [info] level")
 			logger.SetLogLevel(zap.InfoLevel)
 		}
 	}
@@ -181,7 +224,7 @@ func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
 }
 
 func (pcf *PCF) Start() {
-	initLog.Infoln("Server started")
+	logger.InitLog.Infoln("server started")
 	router := utilLogger.NewGinWithZap(logger.GinLog)
 
 	bdtpolicy.AddService(router)
@@ -208,7 +251,7 @@ func (pcf *PCF) Start() {
 	}))
 
 	if err := notifyevent.RegisterNotifyDispatcher(); err != nil {
-		initLog.Error("Register NotifyDispatcher Error")
+		logger.InitLog.Errorln("register NotifyDispatcher error")
 	}
 
 	self := context.PCF_Self()
@@ -217,7 +260,7 @@ func (pcf *PCF) Start() {
 	addr := fmt.Sprintf("%s:%d", self.BindingIPv4, self.SBIPort)
 
 	if self.EnableNrfCaching {
-		initLog.Infoln("Enable NRF caching feature")
+		logger.InitLog.Infoln("enable NRF caching feature")
 		nrfCache.InitNrfCaching(self.NrfCacheEvictionInterval*time.Second, consumer.SendNfDiscoveryToNrf)
 	}
 	// Attempt NRF Registration until success
@@ -231,67 +274,68 @@ func (pcf *PCF) Start() {
 		os.Exit(0)
 	}()
 
-	server, err := http2_util.NewServer(addr, util.PCF_LOG_PATH, router)
+	sslLog := filepath.Dir(factory.PcfConfig.CfgLocation) + "/sslkey.log"
+	server, err := http2_util.NewServer(addr, sslLog, router)
 	if server == nil {
-		initLog.Errorf("Initialize HTTP server failed: %+v", err)
+		logger.InitLog.Errorf("initialize HTTP server failed: %+v", err)
 		return
 	}
 
 	if err != nil {
-		initLog.Warnf("Initialize HTTP server: +%v", err)
+		logger.InitLog.Warnf("initialize HTTP server: +%v", err)
 	}
 
 	serverScheme := factory.PcfConfig.Configuration.Sbi.Scheme
 	if serverScheme == "http" {
 		err = server.ListenAndServe()
 	} else if serverScheme == "https" {
-		err = server.ListenAndServeTLS(util.PCF_PEM_PATH, util.PCF_KEY_PATH)
+		err = server.ListenAndServeTLS(self.PEM, self.Key)
 	}
 
 	if err != nil {
-		initLog.Fatalf("HTTP server setup failed: %+v", err)
+		logger.InitLog.Fatalf("HTTP server setup failed: %+v", err)
 	}
 }
 
 func (pcf *PCF) Exec(c *cli.Context) error {
-	initLog.Debugln("args:", c.String("pcfcfg"))
+	logger.InitLog.Debugln("args:", c.String("cfg"))
 	args := pcf.FilterCli(c)
-	initLog.Debugln("filter:", args)
-	command := exec.Command("./pcf", args...)
+	logger.InitLog.Debugln("filter:", args)
+	command := exec.Command("pcf", args...)
 
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		initLog.Fatalln(err)
+		logger.InitLog.Fatalln(err)
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			initLog.Infoln(in.Text())
+			logger.InitLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	stderr, err := command.StderrPipe()
 	if err != nil {
-		initLog.Fatalln(err)
+		logger.InitLog.Fatalln(err)
 	}
 	go func() {
 		in := bufio.NewScanner(stderr)
-		initLog.Infoln("PCF log start")
+		logger.InitLog.Infoln("PCF log start")
 		for in.Scan() {
-			initLog.Infoln(in.Text())
+			logger.InitLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	go func() {
-		initLog.Infoln("PCF start")
+		logger.InitLog.Infoln("PCF start")
 		if err = command.Start(); err != nil {
-			initLog.Errorf("command.Start() error: %v", err)
+			logger.InitLog.Errorf("command.Start() error: %v", err)
 		}
-		initLog.Infoln("PCF end")
+		logger.InitLog.Infoln("PCF end")
 		wg.Done()
 	}()
 
@@ -315,14 +359,14 @@ func (pcf *PCF) StartKeepAliveTimer(nfProfile models.NfProfile) {
 
 func (pcf *PCF) StopKeepAliveTimer() {
 	if KeepAliveTimer != nil {
-		logger.InitLog.Infof("stopped KeepAlive Timer")
+		logger.InitLog.Infof("stopped KeepAlive timer")
 		KeepAliveTimer.Stop()
 		KeepAliveTimer = nil
 	}
 }
 
 func (pcf *PCF) Terminate() {
-	logger.InitLog.Infof("terminating PCF...")
+	logger.InitLog.Infof("terminating PCF")
 	// deregister with NRF
 	problemDetails, err := consumer.SendDeregisterNFInstance()
 	if problemDetails != nil {
@@ -339,10 +383,10 @@ func (pcf *PCF) BuildAndSendRegisterNFInstance() (models.NfProfile, error) {
 	self := context.PCF_Self()
 	profile, err := consumer.BuildNFInstance(self)
 	if err != nil {
-		initLog.Errorf("Build PCF Profile Error: %v", err)
+		logger.InitLog.Errorf("build PCF Profile Error: %v", err)
 		return profile, err
 	}
-	initLog.Infof("Pcf Profile Registering to NRF: %v", profile)
+	logger.InitLog.Infof("PCF Profile Registering to NRF: %v", profile)
 	// Indefinite attempt to register until success
 	profile, _, self.NfId, err = consumer.SendRegisterNFInstance(self.NrfUri, self.NfId, profile)
 	return profile, err
@@ -353,10 +397,10 @@ func (pcf *PCF) RegisterNF() {
 		msg := <-ConfigPodTrigger
 		// wait till Config pod updates config
 		if msg {
-			initLog.Infof("Config update trigger %v received in PCF App", msg)
+			logger.InitLog.Infof("config update trigger %v received in PCF App", msg)
 			profile, err := pcf.BuildAndSendRegisterNFInstance()
 			if err != nil {
-				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+				logger.InitLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			} else {
 				pcf.StartKeepAliveTimer(profile)
 				// NRF Registration Successful, Trigger for UDR Discovery
@@ -367,13 +411,13 @@ func (pcf *PCF) RegisterNF() {
 			KeepAliveTimerMutex.Lock()
 			pcf.StopKeepAliveTimer()
 			KeepAliveTimerMutex.Unlock()
-			initLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
+			logger.InitLog.Infof("PCF is not having Minimum Config to Register/Update to NRF")
 			problemDetails, err := consumer.SendDeregisterNFInstance()
 			if problemDetails != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
+				logger.InitLog.Errorf("PCF Deregister Instance to NRF failed, Problem: [+%v]", problemDetails)
 			}
 			if err != nil {
-				initLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
+				logger.InitLog.Errorf("PCF Deregister Instance to NRF Error[%s]", err.Error())
 			} else {
 				logger.InitLog.Infoln("deregister from NRF successfully")
 			}
@@ -386,7 +430,7 @@ func (pcf *PCF) UpdateNF() {
 	KeepAliveTimerMutex.Lock()
 	defer KeepAliveTimerMutex.Unlock()
 	if KeepAliveTimer == nil {
-		initLog.Warnf("KeepAlive timer has been stopped.")
+		logger.InitLog.Warnf("KeepAlive timer has been stopped")
 		return
 	}
 	// setting default value 60 sec
@@ -400,21 +444,21 @@ func (pcf *PCF) UpdateNF() {
 	patchItem = append(patchItem, pitem)
 	nfProfile, problemDetails, err := consumer.SendUpdateNFInstance(patchItem)
 	if problemDetails != nil {
-		initLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
+		logger.InitLog.Errorf("PCF update to NRF ProblemDetails[%v]", problemDetails)
 		// 5xx response from NRF, 404 Not Found, 400 Bad Request
 		if (problemDetails.Status/100) == 5 ||
 			problemDetails.Status == 404 || problemDetails.Status == 400 {
 			// register with NRF full profile
 			nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
 			if err != nil {
-				initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+				logger.InitLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 			}
 		}
 	} else if err != nil {
-		initLog.Errorf("PCF update to NRF Error[%s]", err.Error())
+		logger.InitLog.Errorf("PCF update to NRF Error[%s]", err.Error())
 		nfProfile, err = pcf.BuildAndSendRegisterNFInstance()
 		if err != nil {
-			initLog.Errorf("PCF register to NRF Error[%s]", err.Error())
+			logger.InitLog.Errorf("PCF register to NRF Error[%s]", err.Error())
 		}
 	}
 
@@ -433,7 +477,7 @@ func (pcf *PCF) DiscoverUdr() {
 		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
 	}
 	if resp, err := consumer.SendSearchNFInstances(self.NrfUri, models.NfType_UDR, models.NfType_PCF, &param); err != nil {
-		initLog.Errorln(err)
+		logger.InitLog.Errorln(err)
 	} else {
 		for _, nfProfile := range resp.NfInstances {
 			udruri := util.SearchNFServiceUri(nfProfile, models.ServiceName_NUDR_DR, models.NfServiceStatus_REGISTERED)
@@ -502,7 +546,7 @@ func getSessionRule(devGroup *protos.DeviceGroup) (sessionRule *models.SessionRu
 func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (pccPolicy context.PccPolicy) {
 	if slice.AppFilters == nil || slice.AppFilters.PccRuleBase == nil {
 		logger.GrpcLog.Warnf("PccRules not exist in slice: %v", slice.Name)
-		return
+		return pccPolicy
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
@@ -613,7 +657,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		pccPolicy.PccRules[pccrule.RuleId] = &rule
 	}
 
-	return
+	return pccPolicy
 }
 
 func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {
@@ -724,13 +768,13 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
+				policyData.CtxLog.Infoln("subscriber deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
 
 	case protos.OpType_SLICE_DELETE:
-		logger.GrpcLog.Infoln("received Slice with OperationType: Delete from ConfigPod")
+		logger.GrpcLog.Infoln("received Slice with OperationType: delete from ConfigPod")
 		for _, imsi := range slice.DeletedImsis {
 			policyData, ok := self.PcfSubscriberPolicyData[imsi]
 			if !ok {
@@ -745,7 +789,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 			policyData.CtxLog.Infof("slice: %v deleted from SubscriberPolicyData", sliceid)
 			delete(policyData.PccPolicy, sliceid)
 			if len(policyData.PccPolicy) == 0 {
-				policyData.CtxLog.Infof("Subscriber Deleted from PcfSubscriberPolicyData map")
+				policyData.CtxLog.Infoln("subscriber deleted from PcfSubscriberPolicyData map")
 				delete(self.PcfSubscriberPolicyData, imsi)
 			}
 		}
@@ -793,7 +837,7 @@ func (pcf *PCF) UpdateDnnList(ns *protos.NetworkSlice) {
 			}
 		}
 	}
-	logger.GrpcLog.Infof("DnnList Present in PCF: %v", pcfContext.DnnList)
+	logger.GrpcLog.Infof("DnnList present in PCF: %v", pcfContext.DnnList)
 }
 
 func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
@@ -831,7 +875,7 @@ func (pcf *PCF) UpdatePlmnList(ns *protos.NetworkSlice) {
 			pcfContext.PlmnList = append(pcfContext.PlmnList, plmn)
 		}
 	}
-	logger.GrpcLog.Infof("PlmnList Present in PCF: %v", pcfContext.PlmnList)
+	logger.GrpcLog.Infof("PlmnList present in PCF: %v", pcfContext.PlmnList)
 }
 
 func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool {
@@ -840,7 +884,7 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 	for rsp := range commChannel {
 		logger.GrpcLog.Infoln("received UpdateConfig in the pcf app:", rsp)
 		for _, ns := range rsp.NetworkSlice {
-			logger.GrpcLog.Infoln("Network Slice Name:", ns.Name)
+			logger.GrpcLog.Infoln("network slice name:", ns.Name)
 
 			// Update Qos Info
 			// Update/Create/Delete PcfSubscriberPolicyData
@@ -850,7 +894,7 @@ func (pcf *PCF) UpdateConfig(commChannel chan *protos.NetworkSliceResponse) bool
 
 			if ns.Site != nil {
 				site := ns.Site
-				logger.GrpcLog.Infof("Network Slice [%v] has site name: %v", ns.Nssai.Sst+ns.Nssai.Sd, site.SiteName)
+				logger.GrpcLog.Infof("network slice [%v] has site name: %v", ns.Nssai.Sst+ns.Nssai.Sd, site.SiteName)
 				if site.Plmn != nil {
 					pcf.UpdatePlmnList(ns)
 				} else {
