@@ -162,34 +162,35 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
 			}*/
 			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
-				qosMatchedKeys := []string{} // Store keys that match QoS criteria
-
+				qosMatchedKeys := []string{} // Store matched QoS keys
 				// Filtering QoS Decisions
 				for key, qosData := range PccPolicy.QosDecs {
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
 							decision.QosDecs[key] = copiedQosData
-							qosMatchedKeys = append(qosMatchedKeys, key) // Store the matched QoS key
+							qosMatchedKeys = append(qosMatchedKeys, key) // Store matched QoS key
 						} else {
 							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
 						}
 					}
 				}
-				// Match corresponding TrafficControlData using TcId or fallback
-				for _, key := range qosMatchedKeys {
-					var foundTrafficData bool
-					for tcKey, trafficData := range PccPolicy.TraffContDecs {
-						if trafficData.TcId == fmt.Sprintf("TcId-%s", key) { // Adjust if TcId format differs
-							if copiedTrafficData, ok := deepcopy.Copy(trafficData).(*models.TrafficControlData); ok {
-								decision.TraffContDecs[tcKey] = copiedTrafficData
-								foundTrafficData = true
-							} else {
-								logger.SMpolicylog.Warnf("Failed to copy TrafficControlData for key: %s", tcKey)
-							}
-						}
+				// Match corresponding TrafficControlData based on mapped keys
+				for _, qosKey := range qosMatchedKeys {
+					qosKeyInt, err := strconv.Atoi(qosKey)
+					if err != nil {
+						logger.SMpolicylog.Warnf("Invalid QosDecs key format: %s", qosKey)
+						continue // Skip processing if key is not a valid integer
 					}
-					if !foundTrafficData {
-						logger.SMpolicylog.Warnf("No matching TrafficControlData found for QoS key: %s", key)
+					trafficKey := strconv.Itoa(qosKeyInt + 1)
+
+					if trafficData, exists := PccPolicy.TraffContDecs[trafficKey]; exists {
+						if copiedTrafficData, ok := deepcopy.Copy(trafficData).(*models.TrafficControlData); ok {
+							decision.TraffContDecs[trafficKey] = copiedTrafficData
+						} else {
+							logger.SMpolicylog.Warnf("Failed to copy TrafficControlData for key: %s", trafficKey)
+						}
+					} else {
+						logger.SMpolicylog.Warnf("No matching TrafficControlData found for QoS key: %s, expected key: %s", qosKey, trafficKey)
 					}
 				}
 			} else {
