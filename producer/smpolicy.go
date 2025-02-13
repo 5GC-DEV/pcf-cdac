@@ -145,7 +145,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			/*for key, qosData := range PccPolicy.QosDecs {
 				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
 			}*/
-			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
+			/*if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
@@ -160,6 +160,36 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			}
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
+			}*/
+			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
+				qosMatchedKeys := []string{} // Store keys that match QoS criteria
+
+				// Filtering QoS Decisions
+				for key, qosData := range PccPolicy.QosDecs {
+					if qosData.Var5qi == request.SubsDefQos.Var5qi {
+						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
+							decision.QosDecs[key] = copiedQosData
+							qosMatchedKeys = append(qosMatchedKeys, key) // Store the key
+						} else {
+							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
+						}
+					}
+				}
+
+				// Ensure TraffContDecs follows the same count
+				for _, key := range qosMatchedKeys {
+					if trafficData, exists := PccPolicy.TraffContDecs[key]; exists {
+						if copiedTrafficData, ok := deepcopy.Copy(trafficData).(*models.TrafficControlData); ok {
+							decision.TraffContDecs[key] = copiedTrafficData
+						} else {
+							logger.SMpolicylog.Warnf("Failed to copy TrafficControlData for key: %s", key)
+						}
+					} else {
+						logger.SMpolicylog.Warnf("No matching TrafficControlData for key: %s", key)
+					}
+				}
+			} else {
+				logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QosDecs filtering")
 			}
 			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
