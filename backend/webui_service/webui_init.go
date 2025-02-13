@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2022-present Intel Corporation
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
-// Copyright 2019 free5GC.org
+// SPDX-FileCopyrightText: 2019 free5GC.org
+// SPDX-FileCopyrightText: 2024 Canonical Ltd
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -13,14 +14,16 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/omec-project/util/http2_util"
 	utilLogger "github.com/omec-project/util/logger"
-	"github.com/omec-project/util/path_util"
+	"github.com/omec-project/webconsole/backend/auth"
 	"github.com/omec-project/webconsole/backend/factory"
 	"github.com/omec-project/webconsole/backend/logger"
 	"github.com/omec-project/webconsole/backend/metrics"
@@ -39,7 +42,7 @@ type WEBUI struct{}
 type (
 	// Config information.
 	Config struct {
-		webuicfg string
+		cfg string
 	}
 )
 
@@ -47,19 +50,10 @@ var config Config
 
 var webuiCLi = []cli.Flag{
 	cli.StringFlag{
-		Name:  "free5gccfg",
-		Usage: "common config file",
+		Name:     "cfg",
+		Usage:    "webconsole config file",
+		Required: true,
 	},
-	cli.StringFlag{
-		Name:  "webuicfg",
-		Usage: "config file",
-	},
-}
-
-var initLog *zap.SugaredLogger
-
-func init() {
-	initLog = logger.InitLog
 }
 
 func (*WEBUI) GetCliCmd() (flags []cli.Flag) {
@@ -68,18 +62,18 @@ func (*WEBUI) GetCliCmd() (flags []cli.Flag) {
 
 func (webui *WEBUI) Initialize(c *cli.Context) {
 	config = Config{
-		webuicfg: c.String("webuicfg"),
+		cfg: c.String("cfg"),
 	}
 
-	if config.webuicfg != "" {
-		if err := factory.InitConfigFactory(config.webuicfg); err != nil {
-			panic(err)
-		}
-	} else {
-		DefaultWebUIConfigPath := path_util.Free5gcPath("free5gc/config/webuicfg.yaml")
-		if err := factory.InitConfigFactory(DefaultWebUIConfigPath); err != nil {
-			panic(err)
-		}
+	absPath, err := filepath.Abs(config.cfg)
+	if err != nil {
+		logger.ConfigLog.Errorln(err)
+		return
+	}
+
+	if err := factory.InitConfigFactory(absPath); err != nil {
+		logger.ConfigLog.Errorln(err)
+		return
 	}
 
 	webui.setLogLevel()
@@ -87,22 +81,22 @@ func (webui *WEBUI) Initialize(c *cli.Context) {
 
 func (webui *WEBUI) setLogLevel() {
 	if factory.WebUIConfig.Logger == nil {
-		initLog.Warnln("Webconsole config without log level setting!!!")
+		logger.InitLog.Warnln("webconsole config without log level setting")
 		return
 	}
 
 	if factory.WebUIConfig.Logger.WEBUI != nil {
 		if factory.WebUIConfig.Logger.WEBUI.DebugLevel != "" {
 			if level, err := zapcore.ParseLevel(factory.WebUIConfig.Logger.WEBUI.DebugLevel); err != nil {
-				initLog.Warnf("WebUI Log level [%s] is invalid, set to [info] level",
+				logger.InitLog.Warnf("WebUI Log level [%s] is invalid, set to [info] level",
 					factory.WebUIConfig.Logger.WEBUI.DebugLevel)
 				logger.SetLogLevel(zap.InfoLevel)
 			} else {
-				initLog.Infof("WebUI Log level is set to [%s] level", level)
+				logger.InitLog.Infof("WebUI Log level is set to [%s] level", level)
 				logger.SetLogLevel(level)
 			}
 		} else {
-			initLog.Warnln("WebUI Log level not set. Default set to [info] level")
+			logger.InitLog.Warnln("WebUI Log level not set. Default set to [info] level")
 			logger.SetLogLevel(zap.InfoLevel)
 		}
 	}
@@ -136,23 +130,57 @@ func (webui *WEBUI) FilterCli(c *cli.Context) (args []string) {
 	return args
 }
 
-func (webui *WEBUI) Start() {
-	if factory.WebUIConfig.Configuration.Mode5G {
-		// get config file info from WebUIConfig
-		mongodb := factory.WebUIConfig.Configuration.Mongodb
+func setupAuthenticationFeature(subconfig_router *gin.Engine) {
+	mongodb := factory.WebUIConfig.Configuration.Mongodb
+	jwtSecret, err := auth.GenerateJWTSecret()
+	if err != nil {
+		logger.InitLog.Error(err)
+	} else {
+		dbadapter.ConnectMongo(mongodb.WebuiDBUrl, mongodb.WebuiDBName, &dbadapter.WebuiDBClient)
+		resp, err := dbadapter.WebuiDBClient.CreateIndex(configmodels.UserAccountDataColl, "username")
+		if !resp || err != nil {
+			logger.InitLog.Errorf("error initializing webuiDB %v", err)
+		}
+		configapi.AddUserAccountService(subconfig_router, jwtSecret)
+		auth.AddAuthenticationService(subconfig_router, jwtSecret)
+		configapi.AddApiServiceWithAuthorization(subconfig_router, jwtSecret)
+		configapi.AddConfigV1ServiceWithAuthorization(subconfig_router, jwtSecret)
+	}
+}
 
+func (webui *WEBUI) Start() {
+	// get config file info from WebUIConfig
+	mongodb := factory.WebUIConfig.Configuration.Mongodb
+	if factory.WebUIConfig.Configuration.Mode5G {
 		// Connect to MongoDB
-		dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, mongodb.AuthUrl, mongodb.AuthKeysDbName)
+		dbadapter.ConnectMongo(mongodb.Url, mongodb.Name, &dbadapter.CommonDBClient)
+		if err := dbadapter.CheckTransactionsSupport(&dbadapter.CommonDBClient); err != nil {
+			logger.DbLog.Errorw("failed to connect to MongoDB client", mongodb.Name, "error", err)
+			return
+		}
+		dbadapter.ConnectMongo(mongodb.AuthUrl, mongodb.AuthKeysDbName, &dbadapter.AuthDBClient)
 	}
 
-	initLog.Infoln("WebUI Server started")
+	resp, err := dbadapter.CommonDBClient.CreateIndex(configmodels.UpfDataColl, "hostname")
+	if !resp || err != nil {
+		logger.InitLog.Errorf("error creating UPF index in commonDB %v", err)
+	}
+	resp, err = dbadapter.CommonDBClient.CreateIndex(configmodels.GnbDataColl, "name")
+	if !resp || err != nil {
+		logger.InitLog.Errorf("error creating gNB index in commonDB %v", err)
+	}
+	logger.InitLog.Infoln("WebUI server started")
 
 	/* First HTTP Server running at port to receive Config from ROC */
 	subconfig_router := utilLogger.NewGinWithZap(logger.GinLog)
+	if factory.WebUIConfig.Configuration.EnableAuthentication {
+		setupAuthenticationFeature(subconfig_router)
+	} else {
+		configapi.AddApiService(subconfig_router)
+		configapi.AddConfigV1Service(subconfig_router)
+	}
 	AddSwaggerUiService(subconfig_router)
 	AddUiService(subconfig_router)
-	configapi.AddServiceSub(subconfig_router)
-	configapi.AddService(subconfig_router)
 
 	go metrics.InitMetrics()
 
@@ -173,27 +201,30 @@ func (webui *WEBUI) Start() {
 
 	go func() {
 		httpAddr := ":" + strconv.Itoa(factory.WebUIConfig.Configuration.CfgPort)
-		initLog.Infoln("Webui HTTP addr:", httpAddr, factory.WebUIConfig.Configuration.CfgPort)
+		logger.InitLog.Infoln("Webui HTTP addr", httpAddr)
+		tlsConfig := factory.WebUIConfig.Configuration.TLS
 		if factory.WebUIConfig.Info.HttpVersion == 2 {
 			server, err := http2_util.NewServer(httpAddr, "", subconfig_router)
 			if server == nil {
-				initLog.Error("Initialize HTTP-2 server failed:", err)
+				logger.InitLog.Errorln("initialize HTTP-2 server failed:", err)
 				return
 			}
-
 			if err != nil {
-				initLog.Warnln("Initialize HTTP-2 server:", err)
+				logger.InitLog.Warnln("initialize HTTP-2 server:", err)
 				return
 			}
-
-			err = server.ListenAndServe()
+			if tlsConfig != nil {
+				err = server.ListenAndServeTLS(tlsConfig.PEM, tlsConfig.Key)
+			} else {
+				err = server.ListenAndServe()
+			}
 			if err != nil {
-				initLog.Fatalln("HTTP server setup failed:", err)
+				logger.InitLog.Fatalln("HTTP server setup failed:", err)
 				return
 			}
 		} else {
-			initLog.Infoln(subconfig_router.Run(httpAddr))
-			initLog.Infoln("Webserver stopped/terminated/not-started ")
+			logger.InitLog.Infoln(subconfig_router.Run(httpAddr))
+			logger.InitLog.Infoln("Webserver stopped/terminated/not-started")
 		}
 	}()
 	/* First HTTP server end */
@@ -219,42 +250,42 @@ func (webui *WEBUI) Start() {
 }
 
 func (webui *WEBUI) Exec(c *cli.Context) error {
-	initLog.Debugln("args:", c.String("webuicfg"))
+	logger.InitLog.Debugln("args:", c.String("cfg"))
 	args := webui.FilterCli(c)
-	initLog.Debugln("filter:", args)
-	command := exec.Command("./webui", args...)
+	logger.InitLog.Debugln("filter:", args)
+	command := exec.Command("webui", args...)
 
 	webui.Initialize(c)
 
 	stdout, err := command.StdoutPipe()
 	if err != nil {
-		initLog.Fatalln(err)
+		logger.InitLog.Fatalln(err)
 	}
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			initLog.Infoln(in.Text())
+			logger.InitLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	stderr, err := command.StderrPipe()
 	if err != nil {
-		initLog.Fatalln(err)
+		logger.InitLog.Fatalln(err)
 	}
 	go func() {
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			initLog.Infoln(in.Text())
+			logger.InitLog.Infoln(in.Text())
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		if errCmd := command.Start(); errCmd != nil {
-			initLog.Errorln("command.Start Failed")
+			logger.InitLog.Errorln("command.Start Failed")
 		}
 		wg.Done()
 	}()
@@ -279,7 +310,7 @@ func fetchConfigAdapater() {
 		req, err := http.NewRequest(http.MethodPost, httpend, nil)
 		// Handle Error
 		if err != nil {
-			initLog.Errorf("an error occurred %v", err)
+			logger.InitLog.Errorf("an error occurred %v", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -287,15 +318,15 @@ func fetchConfigAdapater() {
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 		resp, err := client.Do(req)
 		if err != nil {
-			initLog.Errorf("an error occurred %v", err)
+			logger.InitLog.Errorf("an error occurred %v", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
 		err = resp.Body.Close()
 		if err != nil {
-			initLog.Errorf("an error occurred %v", err)
+			logger.InitLog.Errorf("an error occurred %v", err)
 		}
-		initLog.Infof("fetching config from simapp/roc. Response code = %d", resp.StatusCode)
+		logger.InitLog.Infof("fetching config from simapp/roc. Response code = %d", resp.StatusCode)
 		break
 	}
 }
