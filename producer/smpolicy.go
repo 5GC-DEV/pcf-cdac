@@ -145,7 +145,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			/*for key, qosData := range PccPolicy.QosDecs {
 				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
 			}*/
-			/*if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
+			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
@@ -160,41 +160,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			}
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
-			}*/
-			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
-				qosMatchedKeys := []string{} // Store matched QoS keys
-				// Filtering QoS Decisions
-				for key, qosData := range PccPolicy.QosDecs {
-					if qosData.Var5qi == request.SubsDefQos.Var5qi {
-						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
-							decision.QosDecs[key] = copiedQosData
-							qosMatchedKeys = append(qosMatchedKeys, key) // Store matched QoS key
-						} else {
-							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
-						}
-					}
-				}
-				// Match corresponding TrafficControlData based on mapped keys
-				for _, qosKey := range qosMatchedKeys {
-					qosKeyInt, err := strconv.Atoi(qosKey)
-					if err != nil {
-						logger.SMpolicylog.Warnf("Invalid QosDecs key format: %s", qosKey)
-						continue // Skip processing if key is not a valid integer
-					}
-					trafficKey := strconv.Itoa(qosKeyInt + 1)
-
-					if trafficData, exists := PccPolicy.TraffContDecs[trafficKey]; exists {
-						if copiedTrafficData, ok := deepcopy.Copy(trafficData).(*models.TrafficControlData); ok {
-							decision.TraffContDecs[trafficKey] = copiedTrafficData
-						} else {
-							logger.SMpolicylog.Warnf("Failed to copy TrafficControlData for key: %s", trafficKey)
-						}
-					} else {
-						logger.SMpolicylog.Warnf("No matching TrafficControlData found for QoS key: %s, expected key: %s", qosKey, trafficKey)
-					}
-				}
-			} else {
-				logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QosDecs filtering")
 			}
 			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
