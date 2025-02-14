@@ -653,63 +653,67 @@ func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, 
 
 func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string, sessionrule *models.SessionRule, slice *protos.NetworkSlice) {
 	self := context.PCF_Self()
-
-	// Initialize Subscriber Policy Data if not exists
+	// Preserve existing policy data if already present
 	if _, exists := self.PcfSubscriberPolicyData[imsi]; !exists {
 		self.PcfSubscriberPolicyData[imsi] = &context.PcfSubscriberPolicyData{}
 		logger.GrpcLog.Infof("Created new PcfSubscriberPolicyData for IMSI: %s", imsi)
+	} else {
+		logger.GrpcLog.Infof("IMSI: %s already exists in PcfSubscriberPolicyData, preserving existing data", imsi)
 	}
-
 	policyData := self.PcfSubscriberPolicyData[imsi]
 	policyData.CtxLog = logger.CtxLog.With(logger.FieldSupi, "imsi-"+imsi)
 
 	// Initialize PccPolicy for the slice if not already initialized
 	if policyData.PccPolicy == nil {
 		policyData.PccPolicy = make(map[string]*context.PccPolicy)
+		logger.GrpcLog.Infof("Initialized PccPolicy map for IMSI: %s", imsi)
 	}
+	// If SessionPolicy map for the slice is not initialized, initialize it
 	if _, exists := policyData.PccPolicy[sliceid]; !exists {
 		policyData.PccPolicy[sliceid] = &context.PccPolicy{
+			PccRules:      make(map[string]*models.PccRule),
+			QosDecs:       make(map[string]*models.QosData),
+			TraffContDecs: make(map[string]*models.TrafficControlData),
 			SessionPolicy: make(map[string]*context.SessionPolicy), // Initialize SessionPolicy map
 			IdGenerator:   nil,
 		}
+		logger.GrpcLog.Infof("Created new PccPolicy for Slice: %s, IMSI: %s", sliceid, imsi)
+	} else {
+		logger.GrpcLog.Infof("Slice: %s already exists for IMSI: %s", sliceid, imsi)
 	}
-
 	// Ensure that the SessionPolicy for the given DNN is initialized
 	if _, exists := policyData.PccPolicy[sliceid].SessionPolicy[dnn]; !exists {
 		policyData.PccPolicy[sliceid].SessionPolicy[dnn] = &context.SessionPolicy{
 			SessionRules:           make(map[string]*models.SessionRule),
-			PccRules:               make(map[string]*models.PccRule),
-			QosDecs:                make(map[string]*models.QosData),
-			TraffContDecs:          make(map[string]*models.TrafficControlData),
 			SessionRuleIdGenerator: idgenerator.NewGenerator(1, math.MaxInt16),
 		}
+		logger.GrpcLog.Infof("Created new SessionPolicy for DNN: %s in Slice: %s, IMSI: %s", dnn, sliceid, imsi)
+	} else {
+		logger.GrpcLog.Infof("DNN: %s already exists in Slice: %s for IMSI: %s, preserving existing session policy", dnn, sliceid, imsi)
 	}
-
 	// Allocate a new session rule ID
 	id, err := policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRuleIdGenerator.Allocate()
 	if err != nil {
 		logger.GrpcLog.Errorf("SessionRuleIdGenerator allocation failed: %v", err)
 	}
+	// Set the session rule ID and store the session rule for the DNN
 	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
-
 	logger.GrpcLog.Infof("Added new SessionRule [%s] for DNN: %s in Slice: %s, IMSI: %s", sessionrule.SessRuleId, dnn, sliceid, imsi)
 
 	// Get the PCC rules for the slice and session rule
 	pccPolicy := getPccRules(slice, sessionrule)
 
-	// ✅ Store PCC Rules, QoS, and Traffic Data **PER DNN** inside `SessionPolicy`
-	sessPolicy := policyData.PccPolicy[sliceid].SessionPolicy[dnn]
+	// Store the retrieved PCC rules
 	for index, element := range pccPolicy.PccRules {
-		sessPolicy.PccRules[index] = element
+		policyData.PccPolicy[sliceid].PccRules[index] = element
 	}
 	for index, element := range pccPolicy.QosDecs {
-		sessPolicy.QosDecs[index] = element
+		policyData.PccPolicy[sliceid].QosDecs[index] = element
 	}
 	for index, element := range pccPolicy.TraffContDecs {
-		sessPolicy.TraffContDecs[index] = element
+		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
 	}
-
 	// Log the policy data for the IMSI
 	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
 	logger.GrpcLog.Infof("Final Policy Data for IMSI: %s -> Slice: %s -> DNN: %s: %v", imsi, sliceid, dnn, policyData)

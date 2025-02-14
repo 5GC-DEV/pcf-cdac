@@ -125,28 +125,28 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	sliceid := sstStr + request.SliceInfo.Sd
 	self := pcf_context.PCF_Self()
 	imsi := strings.TrimPrefix(ue.Supi, "imsi-")
-	/*if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-	logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
-	if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
-		if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
-			for _, sessRule := range sessPolicy.SessionRules {
-				decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
+	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
+		logger.SMpolicylog.Infof("Supi[%s] exist in PcfSubscriberPolicyData", imsi)
+		if PccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
+			if sessPolicy, exist := PccPolicy.SessionPolicy[request.Dnn]; exist {
+				for _, sessRule := range sessPolicy.SessionRules {
+					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
+				}
+			} else {
+				logger.SMpolicylog.Infof("requested Dnn[%s] is not exist in local policy", request.Dnn)
+				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
+				return nil, nil, &problemDetail
 			}
-		} else {
-			logger.SMpolicylog.Infof("requested Dnn[%s] is not exist in local policy", request.Dnn)
-			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-			return nil, nil, &problemDetail
-		}
 
-		for key, pccRule := range PccPolicy.PccRules {
-			decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
-		}
+			for key, pccRule := range PccPolicy.PccRules {
+				decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
+			}
 
-		/*for key, qosData := range PccPolicy.QosDecs {
-			decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
-			break
-		}*/
-	/*if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
+			/*for key, qosData := range PccPolicy.QosDecs {
+				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+				break
+			}*/
+			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
@@ -172,59 +172,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		problemDetail := util.GetProblemDetail("Can't find in local policy", util.USER_UNKNOWN)
 		logger.SMpolicylog.Warnf("can not find UE[%s] in local policy", ue.Supi)
 		return nil, nil, &problemDetail
-	}*/
-	if subsPolicyData, ok := self.PcfSubscriberPolicyData[imsi]; ok {
-		logger.SMpolicylog.Infof("Supi[%s] exists in PcfSubscriberPolicyData", imsi)
-		if pccPolicy, ok1 := subsPolicyData.PccPolicy[sliceid]; ok1 {
-			if sessPolicy, exist := pccPolicy.SessionPolicy[request.Dnn]; exist {
-				for _, sessRule := range sessPolicy.SessionRules {
-					decision.SessRules[sessRule.SessRuleId] = deepcopy.Copy(sessRule).(*models.SessionRule)
-				}
-
-				// Fetch PCC Rules per DNN
-				if sessPolicy.PccRules != nil {
-					for key, pccRule := range sessPolicy.PccRules {
-						decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
-					}
-				} else {
-					logger.SMpolicylog.Warnf("No PCC rules found for DNN[%s]", request.Dnn)
-				}
-
-				// Fetch QoS Data per DNN
-				if request.SubsDefQos != nil {
-					for key, qosData := range sessPolicy.QosDecs {
-						if qosData.Var5qi == request.SubsDefQos.Var5qi {
-							if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
-								decision.QosDecs[key] = copiedQosData
-							} else {
-								logger.SMpolicylog.Warnf("Failed to copy QoS data for key: %s", key)
-							}
-						}
-					}
-				} else {
-					logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QoS filtering")
-				}
-
-				// Fetch Traffic Control Data per DNN
-				if sessPolicy.TraffContDecs != nil {
-					for key, trafficData := range sessPolicy.TraffContDecs {
-						decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
-					}
-				} else {
-					logger.SMpolicylog.Warnf("No Traffic Control Data found for DNN[%s]", request.Dnn)
-				}
-
-				logger.SMpolicylog.Infof("PCC Policy in SM Policy Decision [%v]: %v", sliceid, sessPolicy)
-			} else {
-				logger.SMpolicylog.Warnf("DNN[%s] not found in policy for slice[%v]", request.Dnn, sliceid)
-				problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-				return nil, nil, &problemDetail
-			}
-		} else {
-			logger.SMpolicylog.Warnf("Slice[%v] not configured for subscriber", sliceid)
-			problemDetail := util.GetProblemDetail("Can't find local policy", util.USER_UNKNOWN)
-			return nil, nil, &problemDetail
-		}
 	}
 	/*var ambr *models.Ambr
 	//sstStr := strconv.Itoa(int(request.SliceInfo.Sst))

@@ -75,9 +75,6 @@ type PCFContext struct {
 
 type SessionPolicy struct {
 	SessionRules           map[string]*models.SessionRule
-	PccRules               map[string]*models.PccRule
-	QosDecs                map[string]*models.QosData
-	TraffContDecs          map[string]*models.TrafficControlData
 	SessionRuleIdGenerator *idgenerator.IDGenerator
 }
 
