@@ -147,7 +147,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
 				break
 			}*/
-			/*if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
+			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
@@ -159,10 +159,9 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				}
 			} else {
 				logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QosDecs filtering")
-			}*/
+			}
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
-				break
 			}
 			logger.SMpolicylog.Infof("PccPolicy in SM Policy Decision[%v]: %v", sliceid, PccPolicy)
 		} else {
