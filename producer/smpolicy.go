@@ -140,12 +140,13 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 
 			for key, pccRule := range PccPolicy.PccRules {
 				decision.PccRules[key] = deepcopy.Copy(pccRule).(*models.PccRule)
-			}
-
-			for key, qosData := range PccPolicy.QosDecs {
-				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
 				break
 			}
+
+			/*for key, qosData := range PccPolicy.QosDecs {
+				decision.QosDecs[key] = deepcopy.Copy(qosData).(*models.QosData)
+				break
+			}*/
 			/*if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
