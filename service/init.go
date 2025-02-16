@@ -520,7 +520,7 @@ func getSessionRules(devGroup *protos.DeviceGroup) map[string]*models.SessionRul
 func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (pccPolicy context.PccPolicy) {
 	if slice.AppFilters == nil || slice.AppFilters.PccRuleBase == nil {
 		logger.GrpcLog.Warnf("PccRules not exist in slice: %v", slice.Name)
-		return
+		return pccPolicy
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
@@ -631,7 +631,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		pccPolicy.PccRules[pccrule.RuleId] = &rule
 	}
 
-	return
+	return pccPolicy
 }
 
 func findQosData(qosdecs map[string]*models.QosData, qos models.QosData) (bool, *models.QosData) {

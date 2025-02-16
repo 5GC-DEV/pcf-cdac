@@ -164,6 +164,37 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			} else {
 				logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QosDecs filtering")
 			}
+
+			/*if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
+				matchingQosIds := make(map[string]bool) // Store matching QosIds
+
+				// First, collect matching QoS IDs
+				for key, qosData := range PccPolicy.QosDecs {
+					if qosData.Var5qi == request.SubsDefQos.Var5qi {
+						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
+							decision.QosDecs[key] = copiedQosData
+							matchingQosIds[key] = true // Store matching QosId
+						} else {
+							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
+						}
+					}
+				}
+
+				// Now, iterate over PccRules and copy only those that reference a matching QosId
+				for pccKey, pccRule := range PccPolicy.PccRules {
+					for _, refQosId := range pccRule.RefQosData {
+						if matchingQosIds[refQosId] { // Check if this QosId was selected
+							logger.SMpolicylog.Infof("Copying PccRule[%s] as it matches QosId[%s]", pccKey, refQosId)
+							decision.PccRules[pccKey] = deepcopy.Copy(pccRule).(*models.PccRule)
+							break // No need to check further for this PccRule
+						}
+					}
+				}
+			} else {
+				logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QosDecs filtering")
+			}
+			*/
+
 			for key, trafficData := range PccPolicy.TraffContDecs {
 				logger.SMpolicylog.Infof("Original traffic data[%s]: %+v", key, trafficData)
 				decision.TraffContDecs[key] = deepcopy.Copy(trafficData).(*models.TrafficControlData)
