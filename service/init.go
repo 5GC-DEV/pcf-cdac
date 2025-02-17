@@ -524,6 +524,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 	}
 	pccPolicy.IdGenerator = idgenerator.NewGenerator(1, math.MaxInt64)
 	for _, pccrule := range slice.AppFilters.PccRuleBase {
+		logger.GrpcLog.Info("inside PccRuleBase")
 		id, err := pccPolicy.IdGenerator.Allocate()
 		if err != nil {
 			logger.GrpcLog.Errorf("IdGenerator allocation failed: %v", err)
@@ -627,8 +628,12 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		}
 		if pccPolicy.PccRules == nil {
 			pccPolicy.PccRules = make(map[string]*models.PccRule)
+			// pccPolicy.PccRules = make(map[string][]*models.PccRule)
 		}
 		pccPolicy.PccRules[pccrule.RuleId] = &rule
+		// pccPolicy.PccRules[pccrule.RuleId] = append(pccPolicy.PccRules[pccrule.RuleId], &rule)
+		logger.GrpcLog.Infof("Processing PccRule: %v", pccrule.RuleId)
+
 	}
 
 	return pccPolicy
