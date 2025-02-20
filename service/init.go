@@ -634,15 +634,13 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 		pccPolicy.PccRules[pccrule.RuleId] = &rule
 		// pccPolicy.PccRules[pccrule.RuleId] = append(pccPolicy.PccRules[pccrule.RuleId], &rule)
 		logger.GrpcLog.Infof("Processing PccRule: %v", pccrule.RuleId)
-
 	}
 	// Log final PCC policy data
 	logger.GrpcLog.Infof("Final PCC Policy: %+v", pccPolicy)
-
 	// Optional: Log individual components
 	logger.GrpcLog.Infof("Total PCC Rules: %d", len(pccPolicy.PccRules))
 	for ruleID, rule := range pccPolicy.PccRules {
-		logger.GrpcLog.Infof("Rule ID: %s, Precedence: %d, Flow Count: %d", ruleID, rule.Precedence, len(rule.FlowInfos))
+		logger.GrpcLog.Infof("Rule ID: %s, Precedence: %d, Flow Count: %d, PCCRuleID: %s", ruleID, rule.Precedence, len(rule.FlowInfos), rule.PccRuleId)
 	}
 	logger.GrpcLog.Infof("Total QoS Entries: %d", len(pccPolicy.QosDecs))
 	logger.GrpcLog.Infof("Total Traffic Control Entries: %d", len(pccPolicy.TraffContDecs))
