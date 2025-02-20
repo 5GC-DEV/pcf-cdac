@@ -631,7 +631,8 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			pccPolicy.PccRules = make(map[string]*models.PccRule)
 			// pccPolicy.PccRules = make(map[string][]*models.PccRule)
 		}
-		pccPolicy.PccRules[pccrule.RuleId] = &rule
+		// pccPolicy.PccRules[pccrule.RuleId] = &rule
+		pccPolicy.PccRules[rule.PccRuleId] = &rule
 		// pccPolicy.PccRules[pccrule.RuleId] = append(pccPolicy.PccRules[pccrule.RuleId], &rule)
 		logger.GrpcLog.Infof("Processing PccRule: %v", pccrule.RuleId)
 	}
