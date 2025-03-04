@@ -50,7 +50,7 @@ func deviceGroup(name string) configmodels.DeviceGroups {
 		Imsis:            []string{"1234", "5678"},
 		SiteInfo:         "demo",
 		IpDomainName:     "pool1",
-		IpDomainExpanded: ipdomain,
+		IpDomainExpanded: []configmodels.DeviceGroupsIpDomainExpanded{ipdomain},
 	}
 	return deviceGroup
 }
@@ -181,8 +181,13 @@ func Test_sendPebbleNotification_off_when_handleNetworkSlicePost(t *testing.T) {
 func Test_handleDeviceGroupPost(t *testing.T) {
 	deviceGroups := []configmodels.DeviceGroups{deviceGroup("group1"), deviceGroup("group2"), deviceGroup("group_no_imsis"), deviceGroup("group_no_traf_class"), deviceGroup("group_no_qos")}
 	deviceGroups[2].Imsis = []string{}
-	deviceGroups[3].IpDomainExpanded.UeDnnQos.TrafficClass = nil
-	deviceGroups[4].IpDomainExpanded.UeDnnQos = nil
+	deviceGroups[2].Imsis = []string{}
+	if len(deviceGroups[3].IpDomainExpanded) > 0 {
+		deviceGroups[3].IpDomainExpanded[0].UeDnnQos.TrafficClass = nil
+	}
+	if len(deviceGroups[4].IpDomainExpanded) > 0 {
+		deviceGroups[4].IpDomainExpanded[0].UeDnnQos = nil
+	}
 	factory.WebUIConfig.Configuration.Mode5G = true
 	for _, testGroup := range deviceGroups {
 		configMsg := configmodels.ConfigMessage{
@@ -224,8 +229,12 @@ func Test_handleDeviceGroupPost(t *testing.T) {
 func Test_handleDeviceGroupPost_alreadyExists(t *testing.T) {
 	deviceGroups := []configmodels.DeviceGroups{deviceGroup("group1"), deviceGroup("group2"), deviceGroup("group_no_imsis"), deviceGroup("group_no_traf_class"), deviceGroup("group_no_qos")}
 	deviceGroups[2].Imsis = []string{}
-	deviceGroups[3].IpDomainExpanded.UeDnnQos.TrafficClass = nil
-	deviceGroups[4].IpDomainExpanded.UeDnnQos = nil
+	if len(deviceGroups[3].IpDomainExpanded) > 0 {
+		deviceGroups[3].IpDomainExpanded[0].UeDnnQos.TrafficClass = nil
+	}
+	if len(deviceGroups[4].IpDomainExpanded) > 0 {
+		deviceGroups[4].IpDomainExpanded[0].UeDnnQos = nil
+	}
 	factory.WebUIConfig.Configuration.Mode5G = true
 
 	for _, testGroup := range deviceGroups {

@@ -352,13 +352,16 @@ func updateAmPolicyData(imsi string) {
 	}
 }
 
-func updateSmPolicyData(snssai *models.Snssai, dnn string, imsi string) {
+func updateSmPolicyData(snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, imsi string) {
 	var smPolicyData models.SmPolicyData
 	var smPolicySnssaiData models.SmPolicySnssaiData
-	dnnData := map[string]models.SmPolicyDnnData{
-		dnn: {
+	// Iterate over all DNNs in the map
+	dnnData := make(map[string]models.SmPolicyDnnData)
+
+	for dnn := range dnnMap { // Extract each DNN from the map
+		dnnData[dnn] = models.SmPolicyDnnData{
 			Dnn: dnn,
-		},
+		}
 	}
 	// smpolicydata
 	smPolicySnssaiData.Snssai = snssai
@@ -368,99 +371,193 @@ func updateSmPolicyData(snssai *models.Snssai, dnn string, imsi string) {
 	smPolicyDatBsonA := configmodels.ToBsonM(smPolicyData)
 	smPolicyDatBsonA["ueId"] = "imsi-" + imsi
 	filter := bson.M{"ueId": "imsi-" + imsi}
+	logger.DbLog.Infof("Data to be sent to database - smPolicyData: %+v", smPolicyDatBsonA)
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(smPolicyDataColl, filter, smPolicyDatBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
 }
 
-func updateAmProvisionedData(snssai *models.Snssai, qos *configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) {
-	amData := models.AccessAndMobilitySubscriptionData{
-		Gpsis: []string{
-			"msisdn-0900000000",
-		},
-		Nssai: &models.Nssai{
-			DefaultSingleNssais: []models.Snssai{*snssai},
-			SingleNssais:        []models.Snssai{*snssai},
-		},
-		SubscribedUeAmbr: &models.AmbrRm{
-			Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
-			Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
-		},
-	}
-	amDataBsonA := configmodels.ToBsonM(amData)
-	amDataBsonA["ueId"] = "imsi-" + imsi
-	amDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{
-		"ueId": "imsi-" + imsi,
-		"$or": []bson.M{
-			{"servingPlmnId": mcc + mnc},
-			{"servingPlmnId": bson.M{"$exists": false}},
-		},
-	}
-	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(amDataColl, filter, amDataBsonA)
-	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+func updateAmProvisionedData(snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) {
+	for dnn, ueDnnQosList := range dnnMap {
+		aggregatedQoS := aggregateQoS(ueDnnQosList) // Combine multiple QoS into one if needed
+		amData := models.AccessAndMobilitySubscriptionData{
+			Gpsis: []string{"msisdn-0900000000"},
+			Nssai: &models.Nssai{
+				DefaultSingleNssais: []models.Snssai{*snssai},
+				SingleNssais:        []models.Snssai{*snssai},
+			},
+			SubscribedUeAmbr: &models.AmbrRm{
+				Downlink: convertToString(uint64(aggregatedQoS.DnnMbrDownlink)),
+				Uplink:   convertToString(uint64(aggregatedQoS.DnnMbrUplink)),
+			},
+		}
+
+		amDataBsonA := configmodels.ToBsonM(amData)
+		amDataBsonA["ueId"] = "imsi-" + imsi
+		amDataBsonA["servingPlmnId"] = mcc + mnc
+		amDataBsonA["dnn"] = dnn
+		delete(amDataBsonA, "dnn")
+		filter := bson.M{
+			"ueId":          "imsi-" + imsi,
+			"servingPlmnId": mcc + mnc,
+		}
+
+		logger.DbLog.Infof("*** Data to be sent to database - AmProvisionedData: %+v", amDataBsonA)
+		_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(amDataColl, filter, amDataBsonA)
+		if errPost != nil {
+			logger.DbLog.Warnln(errPost)
+		}
 	}
 }
 
-func updateSmProvisionedData(snssai *models.Snssai, qos *configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, dnn, imsi string) {
-	// TODO smData
-	smData := models.SessionManagementSubscriptionData{
-		SingleNssai: snssai,
-		DnnConfigurations: map[string]models.DnnConfiguration{
-			dnn: {
-				PduSessionTypes: &models.PduSessionTypes{
-					DefaultSessionType:  models.PduSessionType_IPV4,
-					AllowedSessionTypes: []models.PduSessionType{models.PduSessionType_IPV4},
+func updateSmProvisionedData(snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) {
+	// Define the filter to find the existing record for this UE
+	filter := bson.M{
+		"ueId":          "imsi-" + imsi,
+		"servingPlmnId": mcc + mnc,
+	}
+
+	// Fetch the existing record from the database
+	existingRecord, err := dbadapter.CommonDBClient.RestfulAPIGetOne(smDataColl, filter)
+	if err != nil && err.Error() != "mongo: no documents in result" {
+		logger.DbLog.Warnf("Failed to fetch existing record for ueId: %s, error: %v", imsi, err)
+		return
+	}
+
+	var smData models.SessionManagementSubscriptionData
+	if existingRecord == nil {
+		// No existing record, create a new one
+		smData = models.SessionManagementSubscriptionData{
+			SingleNssai:       snssai,
+			DnnConfigurations: make(map[string]models.DnnConfiguration),
+		}
+	} else {
+		// Convert existing record to struct
+		// Convert existing record to BSON properly
+		bsonBytes, errMarshal := bson.Marshal(existingRecord) // Use a different name for error
+		if errMarshal != nil {
+			logger.DbLog.Errorf("Failed to marshal existing record: %v", errMarshal)
+			return
+		}
+
+		// Unmarshal BSON into struct
+		errUnmarshal := bson.Unmarshal(bsonBytes, &smData) // Use a different name for error
+		if errUnmarshal != nil {
+			logger.DbLog.Errorf("Failed to unmarshal existing record: %v", errUnmarshal)
+			return
+		}
+	}
+	// Iterate over DNNs and add/update their configurations
+	for dnn, ueDnnQosList := range dnnMap {
+		aggregatedQoS := aggregateQoS(ueDnnQosList) // Combine multiple QoS per DNN
+
+		smData.DnnConfigurations[dnn] = models.DnnConfiguration{
+			PduSessionTypes: &models.PduSessionTypes{
+				DefaultSessionType:  models.PduSessionType_IPV4,
+				AllowedSessionTypes: []models.PduSessionType{models.PduSessionType_IPV4},
+			},
+			SscModes: &models.SscModes{
+				DefaultSscMode: models.SscMode__1,
+				AllowedSscModes: []models.SscMode{
+					"SSC_MODE_2",
+					"SSC_MODE_3",
 				},
-				SscModes: &models.SscModes{
-					DefaultSscMode: models.SscMode__1,
-					AllowedSscModes: []models.SscMode{
-						"SSC_MODE_2",
-						"SSC_MODE_3",
-					},
-				},
-				SessionAmbr: &models.Ambr{
-					Downlink: convertToString(uint64(qos.DnnMbrDownlink)),
-					Uplink:   convertToString(uint64(qos.DnnMbrUplink)),
-				},
-				Var5gQosProfile: &models.SubscribedDefaultQos{
-					Var5qi: 9,
-					Arp: &models.Arp{
-						PriorityLevel: 8,
-					},
+			},
+			SessionAmbr: &models.Ambr{
+				Downlink: convertToString(uint64(aggregatedQoS.DnnMbrDownlink)),
+				Uplink:   convertToString(uint64(aggregatedQoS.DnnMbrUplink)),
+			},
+			Var5gQosProfile: &models.SubscribedDefaultQos{
+				Var5qi: aggregatedQoS.TrafficClass.Qci,
+				Arp: &models.Arp{
 					PriorityLevel: 8,
 				},
+				PriorityLevel: 8,
 			},
-		},
+		}
 	}
-	smDataBsonA := configmodels.ToBsonM(smData)
+
+	// Convert to BSON format
+	// Convert smData to BSON format properly
+	bsonBytes, err := bson.Marshal(smData)
+	if err != nil {
+		logger.DbLog.Errorf("Failed to marshal smData: %v", err)
+		return
+	}
+
+	// Unmarshal BSON into map[string]interface{} for updating MongoDB
+	var smDataBsonA map[string]interface{}
+	err = bson.Unmarshal(bsonBytes, &smDataBsonA)
+	if err != nil {
+		logger.DbLog.Errorf("Failed to unmarshal smData BSON: %v", err)
+		return
+	}
+
+	// Add required fields
 	smDataBsonA["ueId"] = "imsi-" + imsi
 	smDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
+
+	// Update the database
+	logger.DbLog.Infof("Data to be sent to database - SmProvisionedData: %+v", smDataBsonA)
+	// jsonData, _ := json.MarshalIndent(smDataBsonA, "", "  ")
+	// logger.DbLog.Infof("Final JSON before MongoDB update: %s", string(jsonData))
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(smDataColl, filter, smDataBsonA)
 	if errPost != nil {
-		logger.DbLog.Warnln(errPost)
+		logger.DbLog.Warnln("Failed to update DNN configuration:", errPost)
 	}
 }
 
-func updateSmfSelectionProviosionedData(snssai *models.Snssai, mcc, mnc, dnn, imsi string) {
-	smfSelData := models.SmfSelectionSubscriptionData{
-		SubscribedSnssaiInfos: map[string]models.SnssaiInfo{
-			SnssaiModelsToHex(*snssai): {
-				DnnInfos: []models.DnnInfo{
-					{
-						Dnn: dnn,
-					},
-				},
-			},
-		},
+func aggregateQoS(qosList []configmodels.DeviceGroupsIpDomainExpandedUeDnnQos) configmodels.DeviceGroupsIpDomainExpandedUeDnnQos {
+	var aggregated configmodels.DeviceGroupsIpDomainExpandedUeDnnQos
+	for _, qos := range qosList {
+		aggregated.DnnMbrUplink += qos.DnnMbrUplink
+		aggregated.DnnMbrDownlink += qos.DnnMbrDownlink
+		aggregated.BitrateUnit = qos.BitrateUnit
+		if qos.TrafficClass != nil {
+			aggregated.TrafficClass = qos.TrafficClass
+		}
 	}
+	return aggregated
+}
+
+func updateSmfSelectionProvisionedData(snssai *models.Snssai, mcc, mnc string, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, imsi string) {
+	// Create the base SmfSelectionSubscriptionData structure
+	smfSelData := models.SmfSelectionSubscriptionData{
+		SubscribedSnssaiInfos: map[string]models.SnssaiInfo{},
+	}
+
+	// Prepare SnssaiInfo for this snssai
+	snssaiInfo := models.SnssaiInfo{
+		DnnInfos: []models.DnnInfo{},
+	}
+
+	// Iterate through the dnnMap to populate DnnInfos
+	for dnn := range dnnMap {
+		// Append each DNN's info to DnnInfos
+		snssaiInfo.DnnInfos = append(snssaiInfo.DnnInfos, models.DnnInfo{
+			Dnn: dnn,
+		})
+	}
+
+	// Add the SnssaiInfo to the map using the hex representation of the snssai
+	smfSelData.SubscribedSnssaiInfos[SnssaiModelsToHex(*snssai)] = snssaiInfo
+
+	// Convert to BSON format
 	smfSelecDataBsonA := configmodels.ToBsonM(smfSelData)
 	smfSelecDataBsonA["ueId"] = "imsi-" + imsi
 	smfSelecDataBsonA["servingPlmnId"] = mcc + mnc
-	filter := bson.M{"ueId": "imsi-" + imsi, "servingPlmnId": mcc + mnc}
+
+	// Define the filter for the database operation
+	filter := bson.M{
+		"ueId":          "imsi-" + imsi,
+		"servingPlmnId": mcc + mnc,
+	}
+
+	// Log the data to be sent to the database
+	logger.DbLog.Infof("Data to be sent to database - smf selection: %+v", smfSelecDataBsonA)
+
+	// Perform the database post operation
 	_, errPost := dbadapter.CommonDBClient.RestfulAPIPost(smfSelDataColl, filter, smfSelecDataBsonA)
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
@@ -554,13 +651,26 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 				}
 
 				aimsis := getAddedImsisList(confData.Msg.DevGroup, confData.PrevDevGroup)
+				if len(aimsis) == 0 {
+					logger.DbLog.Warnln("No IMSIs to process")
+					return
+				}
 				for _, imsi := range aimsis {
-					dnn := confData.Msg.DevGroup.IpDomainExpanded.Dnn
-					updateAmPolicyData(imsi)
-					updateSmPolicyData(snssai, dnn, imsi)
-					updateAmProvisionedData(snssai, confData.Msg.DevGroup.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, imsi)
-					updateSmProvisionedData(snssai, confData.Msg.DevGroup.IpDomainExpanded.UeDnnQos, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
-					updateSmfSelectionProviosionedData(snssai, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc, dnn, imsi)
+					// Check if IpDomainExpanded is available
+					if len(confData.Msg.DevGroup.IpDomainExpanded) == 0 {
+						logger.ConfigLog.Warnln("No IP Domain data available for IMSI:", imsi)
+						continue
+					}
+					logger.ConfigLog.Infoln("Processing IMSI:", imsi)
+					// Collect all DNNs and QoS mappings for the IMSI
+					dnnMap := make(map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos)
+					for _, ipDomain := range confData.Msg.DevGroup.IpDomainExpanded {
+						if ipDomain.UeDnnQos != nil {
+							dnnMap[ipDomain.Dnn] = append(dnnMap[ipDomain.Dnn], *ipDomain.UeDnnQos)
+						}
+					}
+					// Call update functions only once per IMSI
+					updateSubscriberData(imsi, snssai, dnnMap, slice.SiteInfo.Plmn.Mcc, slice.SiteInfo.Plmn.Mnc)
 				}
 
 				dimsis := getDeletedImsisList(confData.Msg.DevGroup, confData.PrevDevGroup)
@@ -609,21 +719,23 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 					Sd:  slice.SliceId.Sd,
 					Sst: int32(sVal),
 				}
+				mcc := slice.SiteInfo.Plmn.Mcc
+				mnc := slice.SiteInfo.Plmn.Mnc
 				for _, dgName := range slice.SiteDeviceGroup {
-					logger.ConfigLog.Infoln("dgName:", dgName)
+					logger.ConfigLog.Infoln("Processing Device Group:", dgName)
+
 					devGroupConfig := getDeviceGroupByName(dgName)
-					if devGroupConfig != nil {
-						for _, imsi := range devGroupConfig.Imsis {
-							dnn := devGroupConfig.IpDomainExpanded.Dnn
-							mcc := slice.SiteInfo.Plmn.Mcc
-							mnc := slice.SiteInfo.Plmn.Mnc
-							updateAmPolicyData(imsi)
-							updateSmPolicyData(snssai, dnn, imsi)
-							updateAmProvisionedData(snssai, devGroupConfig.IpDomainExpanded.UeDnnQos, mcc, mnc, imsi)
-							updateSmProvisionedData(snssai, devGroupConfig.IpDomainExpanded.UeDnnQos, mcc, mnc, dnn, imsi)
-							updateSmfSelectionProviosionedData(snssai, mcc, mnc, dnn, imsi)
-						}
+					if devGroupConfig == nil {
+						logger.ConfigLog.Warnln("Device group configuration is nil for dgName:", dgName)
+						continue
 					}
+
+					if len(devGroupConfig.IpDomainExpanded) == 0 {
+						logger.ConfigLog.Warnln("IPDomainExpanded is nil or empty for dgName:", dgName)
+						continue
+					}
+
+					processDeviceGroup(devGroupConfig, snssai, mcc, mnc)
 				}
 			}
 
@@ -695,4 +807,36 @@ func sendPebbleNotification(key string) error {
 	}
 	logger.ConfigLog.Infoln("custom Pebble notification sent")
 	return nil
+}
+
+func processDeviceGroup(devGroupConfig *configmodels.DeviceGroups, snssai *models.Snssai, mcc, mnc string) {
+	dnnMap := make(map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos) // Stores multiple DNNs & their QoS per IMSI
+
+	for _, imsi := range devGroupConfig.Imsis {
+		logger.ConfigLog.Infoln("Processing IMSI:", imsi)
+
+		for _, ipDomain := range devGroupConfig.IpDomainExpanded {
+			dnn := ipDomain.Dnn
+
+			// Ensure UeDnnQos is not nil before appending
+			if ipDomain.UeDnnQos != nil {
+				dnnMap[dnn] = append(dnnMap[dnn], *ipDomain.UeDnnQos) // Directly append the UeDnnQos
+			}
+		}
+
+		// Call update functions once after processing all DNNs
+		updateSubscriberData(imsi, snssai, dnnMap, mcc, mnc)
+	}
+}
+
+func updateSubscriberData(imsi string, snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc string) {
+	updateAmPolicyData(imsi)
+
+	// Pass dnnMap directly to functions that support multiple DNNs
+	updateSmPolicyData(snssai, dnnMap, imsi)
+	updateSmfSelectionProvisionedData(snssai, mcc, mnc, dnnMap, imsi)
+	updateAmProvisionedData(snssai, dnnMap, mcc, mnc, imsi)
+	updateSmProvisionedData(snssai, dnnMap, mcc, mnc, imsi) // Updated function to handle multiple DNNs
+
+	logger.ConfigLog.Infoln("Updated IMSI:", imsi, "for all DNNs")
 }
