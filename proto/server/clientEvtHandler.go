@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	protos "github.com/anaswarac-dac/config5g-cdac/proto/sdcoreConfig"
+	protos "github.com/5GC-DEV/config5g-cdac/proto/sdcoreConfig"
 	"github.com/omec-project/webconsole/backend/factory"
 	"github.com/omec-project/webconsole/backend/logger"
 	"github.com/omec-project/webconsole/configmodels"

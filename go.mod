@@ -24,9 +24,9 @@ require (
 )
 
 require (
+	github.com/5GC-DEV/config5g-cdac v1.4.2-0.20250430103952-0383bf5b24b8 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/PuerkitoBio/purell v1.2.1 // indirect
-	github.com/anaswarac-dac/config5g-cdac v0.0.0-20241202102502-e89ac4024fc1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.12.6 // indirect
