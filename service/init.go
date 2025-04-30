@@ -21,8 +21,8 @@ import (
 	"syscall"
 	"time"
 
-	grpcClient "github.com/anaswarac-dac/config5g-cdac/proto/client"
-	protos "github.com/anaswarac-dac/config5g-cdac/proto/sdcoreConfig"
+	grpcClient "github.com/5GC-DEV/config5g-cdac/proto/client"
+	protos "github.com/5GC-DEV/config5g-cdac/proto/sdcoreConfig"
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"

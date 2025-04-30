@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	protos "github.com/anaswarac-dac/config5g-cdac/proto/sdcoreConfig"
+	protos "github.com/5GC-DEV/config5g-cdac/proto/sdcoreConfig"
 	"github.com/antihax/optional"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
 	"github.com/omec-project/openapi/models"
