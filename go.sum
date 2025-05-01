@@ -1,3 +1,5 @@
+github.com/5GC-DEV/config5g-cdac v1.4.2-0.20250430103952-0383bf5b24b8 h1:mhgUeuj4sb3RCGFyDx9DoAl3e3Xppe4ihkQQCJLsVhw=
+github.com/5GC-DEV/config5g-cdac v1.4.2-0.20250430103952-0383bf5b24b8/go.mod h1:lgBpYjPX/MKbjfjy9pvo2ErNCA+2EYDoKEIszJO93E0=
 github.com/BurntSushi/toml v1.4.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=

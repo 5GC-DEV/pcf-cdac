@@ -87,28 +87,41 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	logger.ConfigLog.Infof("url: %v ", req.URL)
 
 	procReq := req.Body.(configmodels.DeviceGroups)
-	ipdomain := &procReq.IpDomainExpanded
-	logger.ConfigLog.Infof("imsis.size: %v, Imsis: %v", len(procReq.Imsis), procReq.Imsis)
+	procReq, ok := req.Body.(configmodels.DeviceGroups)
+	if !ok {
+		logger.ConfigLog.Errorf("Failed to assert request body as DeviceGroups")
+		return false
+	}
+	ipdomains := procReq.IpDomainExpanded // ipdomains is a slice
 
-	logger.ConfigLog.Infof("IP Domain Name: %v", procReq.IpDomainName)
-	logger.ConfigLog.Infof("IP Domain details: %v", ipdomain)
-	logger.ConfigLog.Infof("dnn name: %v", ipdomain.Dnn)
-	logger.ConfigLog.Infof("ue pool: %v", ipdomain.UeIpPool)
-	logger.ConfigLog.Infof("dns Primary: %v", ipdomain.DnsPrimary)
-	logger.ConfigLog.Infof("dns Secondary: %v", ipdomain.DnsSecondary)
-	logger.ConfigLog.Infof("ip mtu: %v", ipdomain.Mtu)
-	logger.ConfigLog.Infof("device Group Name: %v", groupName)
-	if ipdomain.UeDnnQos != nil {
-		ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
-		if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
-			ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
+	logger.ConfigLog.Infof("Imsis.size : %v, Imsis: %v", len(procReq.Imsis), procReq.Imsis)
+	logger.ConfigLog.Infof("IP Domain Name : %v", procReq.IpDomainName)
+
+	if len(ipdomains) > 0 {
+		for i, ipdomain := range ipdomains {
+			logger.ConfigLog.Infof("IP Domain details [%d]: %+v", i, ipdomain)
+			logger.ConfigLog.Infof("DNN Name : %v", ipdomain.Dnn)
+			logger.ConfigLog.Infof("UE Pool  : %v", ipdomain.UeIpPool)
+			logger.ConfigLog.Infof("DNS Primary : %v", ipdomain.DnsPrimary)
+			logger.ConfigLog.Infof("DNS Secondary : %v", ipdomain.DnsSecondary)
+			logger.ConfigLog.Infof("IP MTU : %v", ipdomain.Mtu)
+
+			if ipdomain.UeDnnQos != nil {
+				ipdomain.UeDnnQos.DnnMbrDownlink = convertToBps(ipdomain.UeDnnQos.DnnMbrDownlink, ipdomain.UeDnnQos.BitrateUnit)
+				if ipdomain.UeDnnQos.DnnMbrDownlink < 0 {
+					ipdomain.UeDnnQos.DnnMbrDownlink = math.MaxInt64
+				}
+				logger.ConfigLog.Infof("MBR DownLink : %v", ipdomain.UeDnnQos.DnnMbrDownlink)
+
+				ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
+				if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
+					ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
+				}
+				logger.ConfigLog.Infof("MBR UpLink : %v", ipdomain.UeDnnQos.DnnMbrUplink)
+			}
 		}
-		logger.ConfigLog.Infof("MbrDownLink: %v", ipdomain.UeDnnQos.DnnMbrDownlink)
-		ipdomain.UeDnnQos.DnnMbrUplink = convertToBps(ipdomain.UeDnnQos.DnnMbrUplink, ipdomain.UeDnnQos.BitrateUnit)
-		if ipdomain.UeDnnQos.DnnMbrUplink < 0 {
-			ipdomain.UeDnnQos.DnnMbrUplink = math.MaxInt64
-		}
-		logger.ConfigLog.Infof("MbrUpLink: %v", ipdomain.UeDnnQos.DnnMbrUplink)
+	} else {
+		logger.ConfigLog.Infof("No IP Domain Expanded data available.")
 	}
 
 	var msg configmodels.ConfigMessage
