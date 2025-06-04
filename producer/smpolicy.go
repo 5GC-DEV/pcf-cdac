@@ -98,7 +98,12 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	} else {
 		smData = *smPolicyData.SmPolicyData
 	}
+
+	logger.SMpolicylog.Infof(" AM Policy Parameters 1: [%s]", request.AccessType)
+	logger.SMpolicylog.Infof(" AM Policy Parameters 2: [%s]", request.ServingNetwork)
 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
+	logger.SMpolicylog.Infof(" AM PolicyFind: [%s]", amPolicy)
+
 	if amPolicy == nil {
 		problemDetail := util.GetProblemDetail("Can't find corresponding AM Policy", util.POLICY_CONTEXT_DENIED)
 		logger.SMpolicylog.Warnln("can not find corresponding AM Policy")
