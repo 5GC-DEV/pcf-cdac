@@ -110,6 +110,28 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		// message.SendHttpResponseMessage(httpChannel, nil, int(rsp.Status), rsp)
 		return nil, nil, &problemDetail
 	}
+	// -----------------if ue registered then only fimdAMpolicy works---------------------
+	// var ue *pcf_context.UeContext
+	// ueRegisteredFlag := 0 // Initialize the flag
+
+	// if val, exist := pcfSelf.UePool.Load(request.Supi); exist {
+	// 	ue = val.(*pcf_context.UeContext)
+	// 	if ue != nil && ue.Registered {
+	// 		ueRegisteredFlag = 1
+	// 	}
+	// }
+
+	// if ueRegisteredFlag == 1 {
+	// 	amPolicy := ue.FindAMPolicy(request.AccessType, request.ServingNetwork)
+	// 	logger.SMpolicylog.Infof(" AM PolicyFind: [%s]", amPolicy)
+
+	// 	if amPolicy == nil {
+	// 		problemDetail := util.GetProblemDetail("Can't find corresponding AM Policy", util.POLICY_CONTEXT_DENIED)
+	// 		logger.SMpolicylog.Warnln("can not find corresponding AM Policy")
+	// 		return nil, nil, &problemDetail
+	// 	}
+	// }
+
 	// TODO: check service restrict
 	if ue.Gpsi == "" {
 		ue.Gpsi = request.Gpsi
