@@ -239,6 +239,9 @@ func PostPoliciesProcedure(polAssoId string,
 	assolId := fmt.Sprintf("%s-%d", ue.Supi, ue.PolAssociationIDGenerator)
 	amPolicy := ue.AMPolicyData[assolId]
 
+	logger.AMpolicylog.Infof("AMPolicy create association id[%v] from ampolicy", assolId)
+	logger.AMpolicylog.Infof("AMPolicy create amPolicy[%v]", amPolicy)
+
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
 		client := util.GetNudrClient(udrUri)
 		var response *http.Response
@@ -257,6 +260,11 @@ func PostPoliciesProcedure(polAssoId string,
 			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
 		}
 		amPolicy.AmPolicyData = &amData
+		for _, amPolicy := range amPolicy.AMPolicyData {
+			logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", amPolicy.AccessType)
+			logger.AMpolicylog.Infof("AMPolicy create plmn [%s]  from ampolicy", amPolicy.ServingPlmn)
+		}
+
 	}
 	for _, amPolicy := range ue.AMPolicyData {
 		logger.AMpolicylog.Infof("AMPolicy create access type[%s]", amPolicy.AccessType)
