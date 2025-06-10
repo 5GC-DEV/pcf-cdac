@@ -258,7 +258,10 @@ func PostPoliciesProcedure(polAssoId string,
 		}
 		amPolicy.AmPolicyData = &amData
 	}
-
+	for _, amPolicy := range ue.AMPolicyData {
+		logger.AMpolicylog.Infof("AMPolicy create access type[%s]", amPolicy.AccessType)
+		logger.AMpolicylog.Infof("AMPolicy create plmn [%s]", amPolicy.ServingPlmn)
+	}
 	// TODO: according to PCF Policy to determine ServAreaRes, Rfsp, SuppFeat
 	// amPolicy.ServAreaRes =
 	// amPolicy.Rfsp =
