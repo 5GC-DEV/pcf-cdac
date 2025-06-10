@@ -260,15 +260,22 @@ func PostPoliciesProcedure(polAssoId string,
 			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
 		}
 		amPolicy.AmPolicyData = &amData
+
+		if amPolicy.AmPolicyData != nil {
+			for _, policyEntry := range amPolicy.AmPolicyData.AmPolicyEntires {
+				logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", policyEntry.AccessType)
+				logger.AMpolicylog.Infof("AMPolicy create plmn [%s] from ampolicy", policyEntry.ServingPlmn)
+			}
+		}
 		// for _, amPolicy := range amPolicy.AmPolicyData {
 		// 	logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", amPolicy.AccessType)
 		// 	logger.AMpolicylog.Infof("AMPolicy create plmn [%s]  from ampolicy", amPolicy.ServingPlmn)
 		// }
 
-		if amPolicy.AmPolicyData != nil { // Always check for nil before dereferencing
-			logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", amPolicy.AmPolicyData.AccessType)
-			logger.AMpolicylog.Infof("AMPolicy create plmn [%s] from ampolicy", amPolicy.AmPolicyData.ServingPlmn)
-		}
+		// if amPolicy.AmPolicyData != nil { // Always check for nil before dereferencing
+		// 	logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", amPolicy.AmPolicyData.AccessType)
+		// 	logger.AMpolicylog.Infof("AMPolicy create plmn [%s] from ampolicy", amPolicy.AmPolicyData.ServingPlmn)
+		// }
 
 	}
 	for _, amPolicy := range ue.AMPolicyData {
