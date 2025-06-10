@@ -260,7 +260,7 @@ func PostPoliciesProcedure(polAssoId string,
 			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
 		}
 		amPolicy.AmPolicyData = &amData
-		for _, amPolicy := range amPolicy.AMPolicyData {
+		for _, amPolicy := range amPolicy.AmPolicyData {
 			logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", amPolicy.AccessType)
 			logger.AMpolicylog.Infof("AMPolicy create plmn [%s]  from ampolicy", amPolicy.ServingPlmn)
 		}
