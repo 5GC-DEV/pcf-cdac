@@ -262,9 +262,9 @@ func PostPoliciesProcedure(polAssoId string,
 		amPolicy.AmPolicyData = &amData
 
 		if amPolicy.AmPolicyData != nil {
-			for _, policyEntry := range amPolicy.AmPolicyData.AmPolicyEntires {
+			for _, amPolicy := range amPolicy.AmPolicyData {
 				logger.AMpolicylog.Infof("AMPolicy create access type[%s] from ampolicy", policyEntry.AccessType)
-				logger.AMpolicylog.Infof("AMPolicy create plmn [%s] from ampolicy", policyEntry.ServingPlmn)
+				logger.AMpolicylog.Infof("AMPolicy create plmn [%s] from ampolicy", amPolicy.ServingPlmn)
 			}
 		}
 		// for _, amPolicy := range amPolicy.AmPolicyData {
