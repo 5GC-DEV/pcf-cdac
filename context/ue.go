@@ -403,14 +403,15 @@ func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.Netwo
 		return nil
 	}
 	for _, amPolicy := range ue.AMPolicyData {
-		if amPolicy == nil {
-			logger.SMpolicylog.Warn("AMPolicy is nil, skipping")
-			continue
-		}
-		if amPolicy.ServingPlmn == nil {
-			logger.SMpolicylog.Warn("AMPolicy.ServingPlmn is nil, skipping")
-			continue
-		}
+		logger.SMpolicylog.Infof("Full AMPolicy: %+v", amPolicy)
+		// if amPolicy == nil {
+		// 	logger.SMpolicylog.Warn("AMPolicy is nil, skipping")
+		// 	continue
+		// }
+		// if amPolicy.ServingPlmn == nil {
+		// 	logger.SMpolicylog.Warn("AMPolicy.ServingPlmn is nil, skipping")
+		// 	continue
+		// }
 		logger.SMpolicylog.Infof("Checking AMPolicy: AccessType[%v], ServingPlmn[%v]", amPolicy.AccessType, *amPolicy.ServingPlmn)
 		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
 			logger.SMpolicylog.Infof("Found matching AMPolicy")
