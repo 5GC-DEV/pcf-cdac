@@ -381,44 +381,19 @@ func DecreaseRamainBitRateToZero(remainBitRate *float64) string {
 }
 
 // returns AM Policy which AccessType and plmnId match
-// func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
-// 	logger.SMpolicylog.Infof("Func FindAMPolicy Parameters 1: [%v]", anType)
-// 	logger.SMpolicylog.Infof("Func FindAMPolicy Parameters 2: [%v]", plmnId)
-// 	if ue == nil || plmnId == nil {
-// 		return nil
-// 	}
-// 	for _, amPolicy := range ue.AMPolicyData {
-// 		logger.SMpolicylog.Infof("Func FindAMPolicy check 1: [%v]", amPolicy.AccessType)
-// 		logger.SMpolicylog.Infof("Func FindAMPolicy check 2: [%v]", amPolicy.ServingPlmn)
-// 		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
-// 			return amPolicy
-// 		}
-// 	}
-// 	return nil
-// }
-
 func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
-	logger.SMpolicylog.Infof("FindAMPolicy Params - AccessType: [%v], PLMN: [%v]", anType, plmnId)
+	logger.SMpolicylog.Infof("Func FindAMPolicy Parameters 1: [%v]", anType)
+	logger.SMpolicylog.Infof("Func FindAMPolicy Parameters 2: [%v]", plmnId)
 	if ue == nil || plmnId == nil {
 		return nil
 	}
 	for _, amPolicy := range ue.AMPolicyData {
-		logger.SMpolicylog.Infof("Full AMPolicy: %+v", amPolicy)
-		// if amPolicy == nil {
-		// 	logger.SMpolicylog.Warn("AMPolicy is nil, skipping")
-		// 	continue
-		// }
-		// if amPolicy.ServingPlmn == nil {
-		// 	logger.SMpolicylog.Warn("AMPolicy.ServingPlmn is nil, skipping")
-		// 	continue
-		// }
-		logger.SMpolicylog.Infof("Checking AMPolicy: AccessType[%v], ServingPlmn[%v]", amPolicy.AccessType, *amPolicy.ServingPlmn)
+		logger.SMpolicylog.Infof("Func FindAMPolicy check 1: [%v]", amPolicy.AccessType)
+		logger.SMpolicylog.Infof("Func FindAMPolicy check 2: [%v]", amPolicy.ServingPlmn)
 		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
-			logger.SMpolicylog.Infof("Found matching AMPolicy")
 			return amPolicy
 		}
 	}
-	logger.SMpolicylog.Infof("No matching AMPolicy found")
 	return nil
 }
 

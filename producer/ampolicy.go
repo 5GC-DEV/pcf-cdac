@@ -247,6 +247,8 @@ func PostPoliciesProcedure(polAssoId string,
 		client := util.GetNudrClient(udrUri)
 		var response *http.Response
 		amData, response, err := client.DefaultApi.PolicyDataUesUeIdAmDataGet(context.Background(), ue.Supi)
+		logger.AMpolicylog.Infof("AMPolicy amData test [%v]", amData)
+
 		if err != nil || response == nil || response.StatusCode != http.StatusOK {
 			problemDetail := util.GetProblemDetail("Can't find UE AM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.AMpolicylog.Errorf("Can't find UE[%s] AM Policy Data in UDR", ue.Supi)
