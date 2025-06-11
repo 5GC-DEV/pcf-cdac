@@ -240,6 +240,7 @@ func PostPoliciesProcedure(polAssoId string,
 	amPolicy := ue.AMPolicyData[assolId]
 
 	logger.AMpolicylog.Infof("AMPolicy create association id[%v] from ampolicy", assolId)
+	logger.SMpolicylog.Infof("Full AMPolicy: %+v", amPolicy)
 	logger.AMpolicylog.Infof("AMPolicy create amPolicy[%v]", amPolicy)
 
 	if amPolicy == nil || amPolicy.AmPolicyData == nil {
@@ -261,7 +262,6 @@ func PostPoliciesProcedure(polAssoId string,
 		}
 		amPolicy.AmPolicyData = &amData
 		logger.AMpolicylog.Infof("AMPolicy create AmPolicyData [%v]", amPolicy.AmPolicyData)
-
 	}
 	for _, amPolicy := range ue.AMPolicyData {
 		logger.AMpolicylog.Infof("AMPolicy create access type[%s]", amPolicy.AccessType)
@@ -324,6 +324,7 @@ func PostPoliciesProcedure(polAssoId string,
 			logger.AMpolicylog.Debugf("AMF status[GUAMI: %+v] has been subscribed", *policyAssociationRequest.Guami)
 		}
 	}
+	logger.SMpolicylog.Infof("Full AMPolicy 2: %+v", amPolicy)
 	return &response, locationHeader, nil
 }
 
