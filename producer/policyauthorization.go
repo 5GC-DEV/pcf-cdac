@@ -588,7 +588,7 @@ func ModAppSessionContextProcedure(appSessID string,
 	eventSubs := make(map[models.AfEvent]models.AfNotifMethod)
 	updateSMpolicy := false
 
-	if ascUpdateData.MedComponents != nil {
+	/*if ascUpdateData.MedComponents != nil {
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 		for compN, medCompRm := range ascUpdateData.MedComponents {
 			medComp := transferMedCompRmToMedComp(&medCompRm)
@@ -672,8 +672,119 @@ func ModAppSessionContextProcedure(appSessID string,
 			relatedPccRuleIds[key] = pccRule.PccRuleId
 			updateSMpolicy = true
 		}
-	}
+	}*/
+	if ascUpdateData.MedComponents != nil {
+		logger.PolicyAuthorizationlog.Infoln("[Update] Processing Media Components from AppSession")
 
+		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+
+		for compN, medCompRm := range ascUpdateData.MedComponents {
+			logger.PolicyAuthorizationlog.Infof("[Update] Handling Media Component #%d", compN)
+
+			medComp := transferMedCompRmToMedComp(&medCompRm)
+
+			removeMediaComp(appSession, compN)
+			logger.PolicyAuthorizationlog.Infof("[Update] Removed previous Media Component #%d if existed", compN)
+
+			if zero.IsZero(medComp) {
+				logger.PolicyAuthorizationlog.Infof("[Update] Media Component #%d is empty, skipping", compN)
+				continue
+			}
+
+			var pccRule *models.PccRule
+			var appID string
+			var routeReq *models.AfRoutingRequirement
+			var var5qi int32 = 9
+
+			if medComp.MedType != "" {
+				var5qi = util.MediaTypeTo5qiMap[medComp.MedType]
+				logger.PolicyAuthorizationlog.Infof("[QoS] MediaType=%s mapped to 5QI=%d", medComp.MedType, var5qi)
+			}
+
+			if medComp.MedSubComps != nil {
+				for _, medSubComp := range medComp.MedSubComps {
+					logger.PolicyAuthorizationlog.Infof("[Update] Handling SubComponent FNum=%d for MedCompN=%d", medSubComp.FNum, medComp.MedCompN)
+
+					if tempPccRule, problemDetail := handleMediaSubComponent(smPolicy, medComp, &medSubComp, var5qi); problemDetail != nil {
+						logger.PolicyAuthorizationlog.Errorf("[Error] handleMediaSubComponent failed: %s", problemDetail.Detail)
+						return problemDetail, nil
+					} else {
+						pccRule = tempPccRule
+						logger.PolicyAuthorizationlog.Infof("[Update] Created/Updated PCC Rule ID: %s", pccRule.PccRuleId)
+					}
+
+					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
+					relatedPccRuleIds[key] = pccRule.PccRuleId
+					updateSMpolicy = true
+				}
+				continue
+			} else if medComp.AfAppId != "" {
+				appID = medComp.AfAppId
+				routeReq = medComp.AfRoutReq
+				logger.PolicyAuthorizationlog.Infof("[AppID] Using AfAppId from MedComp: %s", appID)
+			} else if ascUpdateData.AfAppId != "" {
+				appID = ascUpdateData.AfAppId
+				routeReq = medComp.AfRoutReq
+				logger.PolicyAuthorizationlog.Infof("[AppID] Using AfAppId from AscUpdateData: %s", appID)
+			} else {
+				problemDetail := util.GetProblemDetail("Media Component needs flows of subComp or afAppId", util.REQUESTED_SERVICE_NOT_AUTHORIZED)
+				logger.PolicyAuthorizationlog.Errorln("[Error] Media Component missing SubComp and AfAppId")
+				return &problemDetail, nil
+			}
+
+			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
+			if pccRule == nil {
+				logger.PolicyAuthorizationlog.Infof("[PCC Rule] Creating new PCC Rule for AppID=%s", appID)
+
+				pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
+				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
+				logger.PolicyAuthorizationlog.Infof("[QoS] Created QoS ID=%s for 5QI=%d", qosData.QosId, var5qi)
+
+				if var5qi <= 4 {
+					var ul, dl bool
+					qosData, ul, dl = updateQosInMedComp(qosData, medComp)
+					if problemDetail := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetail != nil {
+						logger.PolicyAuthorizationlog.Errorf("[Error] modifyRemainBitRate failed: %s", problemDetail.Detail)
+						return problemDetail, nil
+					}
+					logger.PolicyAuthorizationlog.Infof("[QoS] Updated QoS with remaining bitrate UL=%v, DL=%v", ul, dl)
+				}
+
+				util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, nil, &qosData, nil, nil)
+				logger.PolicyAuthorizationlog.Infof("[Update] Set related QoS to PCC Rule ID=%s", pccRule.PccRuleId)
+
+				smPolicy.PccRuleIdGenarator++
+				maxPrecedence++
+			} else {
+				logger.PolicyAuthorizationlog.Infof("[PCC Rule] Found existing PCC Rule for AppID=%s: %s", appID, pccRule.PccRuleId)
+
+				var qosData models.QosData
+				for _, qosID := range pccRule.RefQosData {
+					qosData = *smPolicy.PolicyDecision.QosDecs[qosID]
+					if qosData.Var5qi == var5qi && qosData.Var5qi <= 4 {
+						var ul, dl bool
+						qosData, ul, dl = updateQosInMedComp(*smPolicy.PolicyDecision.QosDecs[qosID], medComp)
+						if problemDetail := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetail != nil {
+							logger.PolicyAuthorizationlog.Errorf("[Error] modifyRemainBitRate failed on update: %s", problemDetail.Detail)
+							return problemDetail, nil
+						}
+						smPolicy.PolicyDecision.QosDecs[qosData.QosId] = &qosData
+						logger.PolicyAuthorizationlog.Infof("[QoS] Updated existing QoS ID=%s in PCC Rule", qosData.QosId)
+					}
+				}
+			}
+
+			if traffRoutSupp {
+				logger.PolicyAuthorizationlog.Infof("[Routing] Modifying traffic routing for AppID=%s", appID)
+				pccRule = provisioningOfTrafficRoutingInfo(smPolicy, appID, routeReq, medComp.FStatus)
+			}
+
+			key := fmt.Sprintf("%d", medComp.MedCompN)
+			relatedPccRuleIds[key] = pccRule.PccRuleId
+			updateSMpolicy = true
+			logger.PolicyAuthorizationlog.Infof("[Update] Linked MediaCompN=%s to PCC Rule ID=%s", key, pccRule.PccRuleId)
+		}
+	}
 	// Update of traffic routing information
 	// TODO: check ascUpdateData.AfAppId with appSessCtx.AscReqData.AfAppId (now ascUpdateData.AfAppId is empty)
 	if ascUpdateData.AfRoutReq != nil && traffRoutSupp {
