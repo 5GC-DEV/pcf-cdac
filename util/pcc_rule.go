@@ -46,12 +46,12 @@ func CreateDefalutPccRules(id int32) *models.PccRule {
 
 // Get pcc rule Identity(PccRuleId-%d)
 func GetPccRuleId(id int32) string {
-	return fmt.Sprintf("PccRuleId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get qos Identity(QosId-%d)
 func GetQosId(id int32) string {
-	return fmt.Sprintf("QosId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get Cond Identity(CondId-%d)
@@ -61,7 +61,7 @@ func GetCondId(id int32) string {
 
 // Get Traffic Control Identity(TcId-%d)
 func GetTcId(id int32) string {
-	return fmt.Sprintf("TcId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get Charging Identity(ChgId-%d)
