@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/logger"
 )
 
 var MediaTypeTo5qiMap = map[models.MediaType]int32{
@@ -98,8 +99,10 @@ func CreateCondData(id int32) models.ConditionData {
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
+	qosId := GetQosId(id)
+	logger.PolicyAuthorizationlog.Debugf("Creating QosData: QosId [%s], Var5qi [%d], ARP PriorityLevel [%d]", qosId, var5qi, arp)
 	return models.QosData{
-		QosId:  GetQosId(id),
+		QosId:  qosId,
 		Var5qi: var5qi,
 		Arp: &models.Arp{
 			PriorityLevel: arp,
