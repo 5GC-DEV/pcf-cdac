@@ -65,9 +65,7 @@ func transferMedCompRmToMedComp(medCompRm *models.MediaComponentRm) *models.Medi
 func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *models.MediaComponent,
 	medSubComp *models.MediaSubComponent, var5qi int32,
 ) (*models.PccRule, *models.ProblemDetails) {
-
 	logger.PolicyAuthorizationlog.Debugf("Handling MediaSubComponent: FNum [%d], FStatus [%s]", medSubComp.FNum, medSubComp.FStatus)
-
 	var flowInfos []models.FlowInformation
 	if tempFlowInfos, err := getFlowInfos(medSubComp); err != nil {
 		logger.PolicyAuthorizationlog.Errorf("Failed to get FlowInfos for FNum [%d]: %v", medSubComp.FNum, err)
