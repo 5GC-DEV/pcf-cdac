@@ -1,5 +1,5 @@
-github.com/5GC-DEV/config5g-cdac v1.4.2-0.20250430103952-0383bf5b24b8 h1:mhgUeuj4sb3RCGFyDx9DoAl3e3Xppe4ihkQQCJLsVhw=
-github.com/5GC-DEV/config5g-cdac v1.4.2-0.20250430103952-0383bf5b24b8/go.mod h1:lgBpYjPX/MKbjfjy9pvo2ErNCA+2EYDoKEIszJO93E0=
+github.com/5GC-DEV/config5g-cdac v0.2.1 h1:7Cqwmqh5jqeWtwYTrITflrGotglIRBIb1P3EF2f85OA=
+github.com/5GC-DEV/config5g-cdac v0.2.1/go.mod h1:0OEL6UoNKKlx2tlNSoKpRtzckwxR2SL+pRBDAOCT4BU=
 github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d h1:Byv0BzEl3/e6D5CLfI0j/7hiIEtvGVFPCZ7Ei2oq8iQ=
