@@ -47,7 +47,7 @@ import (
 	"github.com/omec-project/util/http2_util"
 	"github.com/omec-project/util/idgenerator"
 	utilLogger "github.com/omec-project/util/logger"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -74,7 +74,7 @@ func init() {
 var config Config
 
 var pcfCLi = []cli.Flag{
-	cli.StringFlag{
+	&cli.StringFlag{
 		Name:     "cfg",
 		Usage:    "pcf config file",
 		Required: true,
@@ -85,7 +85,7 @@ func (*PCF) GetCliCmd() (flags []cli.Flag) {
 	return pcfCLi
 }
 
-func (pcf *PCF) Initialize(c *cli.Context) error {
+func (pcf *PCF) Initialize(c *cli.Command) error {
 	config = Config{
 		cfg: c.String("cfg"),
 	}
@@ -130,7 +130,7 @@ func manageGrpcClient(webuiUri string, pcf *PCF) {
 	count := 0
 	for {
 		if client != nil {
-			if client.CheckGrpcConnectivity() != "ready" {
+			if client.CheckGrpcConnectivity() != "READY" {
 				time.Sleep(time.Second * 30)
 				count++
 				if count > 5 {
@@ -159,6 +159,8 @@ func manageGrpcClient(webuiUri string, pcf *PCF) {
 				go pcf.UpdateConfig(configChannel)
 				logger.InitLog.Infoln("PCF updateConfig is triggered")
 			}
+
+			time.Sleep(time.Second * 5) // Fixes (avoids) 100% CPU utilization
 		} else {
 			client, err = grpcClient.ConnectToConfigServer(webuiUri)
 			stream = nil
@@ -210,9 +212,9 @@ func (pcf *PCF) setLogLevel() {
 	}
 }
 
-func (pcf *PCF) FilterCli(c *cli.Context) (args []string) {
+func (pcf *PCF) FilterCli(c *cli.Command) (args []string) {
 	for _, flag := range pcf.GetCliCmd() {
-		name := flag.GetName()
+		name := flag.Names()[0]
 		value := fmt.Sprint(c.Generic(name))
 		if value == "" {
 			continue
@@ -286,10 +288,14 @@ func (pcf *PCF) Start() {
 	}
 
 	serverScheme := factory.PcfConfig.Configuration.Sbi.Scheme
-	if serverScheme == "http" {
+	switch serverScheme {
+	case "http":
 		err = server.ListenAndServe()
-	} else if serverScheme == "https" {
+	case "https":
 		err = server.ListenAndServeTLS(self.PEM, self.Key)
+	default:
+		logger.InitLog.Fatalf("HTTP server setup failed: invalid server scheme %+v", serverScheme)
+		return
 	}
 
 	if err != nil {
@@ -297,7 +303,7 @@ func (pcf *PCF) Start() {
 	}
 }
 
-func (pcf *PCF) Exec(c *cli.Context) error {
+func (pcf *PCF) Exec(c *cli.Command) error {
 	logger.InitLog.Debugln("args:", c.String("cfg"))
 	args := pcf.FilterCli(c)
 	logger.InitLog.Debugln("filter:", args)
@@ -597,14 +603,16 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			}
 			if pccrule.Qos.Arp != nil {
 				qos.Arp = &models.Arp{PriorityLevel: pccrule.Qos.Arp.PL}
-				if pccrule.Qos.Arp.PC == protos.PccArpPc_NOT_PREEMPT {
+				switch pccrule.Qos.Arp.PC {
+				case protos.PccArpPc_NOT_PREEMPT:
 					qos.Arp.PreemptCap = models.PreemptionCapability_NOT_PREEMPT
-				} else if pccrule.Qos.Arp.PC == protos.PccArpPc_MAY_PREEMPT {
+				case protos.PccArpPc_MAY_PREEMPT:
 					qos.Arp.PreemptCap = models.PreemptionCapability_MAY_PREEMPT
 				}
-				if pccrule.Qos.Arp.PV == protos.PccArpPv_NOT_PREEMPTABLE {
+				switch pccrule.Qos.Arp.PV {
+				case protos.PccArpPv_NOT_PREEMPTABLE:
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_NOT_PREEMPTABLE
-				} else if pccrule.Qos.Arp.PV == protos.PccArpPv_PREEMPTABLE {
+				case protos.PccArpPv_PREEMPTABLE:
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_PREEMPTABLE
 				}
 			}
@@ -629,13 +637,14 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			}
 			flow.PackFiltId = strconv.FormatInt(id, 10)
 
-			if pflow.FlowDir == protos.PccFlowDirection_DOWNLINK {
+			switch pflow.FlowDir {
+			case protos.PccFlowDirection_DOWNLINK:
 				flow.FlowDirection = models.FlowDirectionRm_DOWNLINK
-			} else if pflow.FlowDir == protos.PccFlowDirection_UPLINK {
+			case protos.PccFlowDirection_UPLINK:
 				flow.FlowDirection = models.FlowDirectionRm_UPLINK
-			} else if pflow.FlowDir == protos.PccFlowDirection_BIDIRECTIONAL {
+			case protos.PccFlowDirection_BIDIRECTIONAL:
 				flow.FlowDirection = models.FlowDirectionRm_BIDIRECTIONAL
-			} else if pflow.FlowDir == protos.PccFlowDirection_UNSPECIFIED {
+			case protos.PccFlowDirection_UNSPECIFIED:
 				flow.FlowDirection = models.FlowDirectionRm_UNSPECIFIED
 			}
 			if strings.HasSuffix(flow.FlowDescription, "any to assigned") ||
@@ -646,9 +655,10 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 			var tcData models.TrafficControlData
 			tcData.TcId = "TcId-" + strconv.FormatInt(id, 10)
 
-			if pflow.FlowStatus == protos.PccFlowStatus_ENABLED {
+			switch pflow.FlowStatus {
+			case protos.PccFlowStatus_ENABLED:
 				tcData.FlowStatus = models.FlowStatus_ENABLED
-			} else if pflow.FlowStatus == protos.PccFlowStatus_DISABLED {
+			case protos.PccFlowStatus_DISABLED:
 				tcData.FlowStatus = models.FlowStatus_DISABLED
 			}
 
