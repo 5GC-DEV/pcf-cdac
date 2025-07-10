@@ -975,7 +975,7 @@ func deviceGroupWithImsis(name string, imsis []string) configmodels.DeviceGroups
 	}
 	deviceGroup := configmodels.DeviceGroups{
 		DeviceGroupName:  name,
-		Imsis:            []string{"1234", "5678"},
+		Imsis:            imsis,
 		SiteInfo:         "demo",
 		IpDomainName:     "pool1",
 		IpDomainExpanded: []configmodels.DeviceGroupsIpDomainExpanded{ipDomain1, ipDomain2},

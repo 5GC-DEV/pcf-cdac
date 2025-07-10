@@ -117,8 +117,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	logger.ConfigLog.Infof("query: %v", req.Query)
 	logger.ConfigLog.Infof("printing request body: %v", req.Body)
 	logger.ConfigLog.Infof("url: %v ", req.URL)
-
-	procReq := req.Body.(configmodels.DeviceGroups)
 	procReq, ok := req.Body.(configmodels.DeviceGroups)
 	if !ok {
 		logger.ConfigLog.Errorf("Failed to assert request body as DeviceGroups")
