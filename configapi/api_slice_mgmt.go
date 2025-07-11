@@ -6,6 +6,8 @@
 package configapi
 
 import (
+	"encoding/json"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -14,6 +16,8 @@ import (
 	"github.com/omec-project/util/httpwrapper"
 	"github.com/omec-project/webconsole/backend/logger"
 	"github.com/omec-project/webconsole/configmodels"
+	"github.com/omec-project/webconsole/dbadapter"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 const (
@@ -35,6 +39,7 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	if groupName, exists = c.Params.Get("group-name"); exists {
 		logger.ConfigLog.Infof("received Delete Group %v from Roc/simapp", groupName)
 	}
+	updateDeviceGroupInNetworkSlices(groupName)
 	var msg configmodels.ConfigMessage
 	msg.MsgType = configmodels.Device_group
 	msg.MsgMethod = configmodels.Delete_op
@@ -42,6 +47,33 @@ func DeviceGroupDeleteHandler(c *gin.Context) bool {
 	configChannel <- &msg
 	logger.ConfigLog.Infof("successfully Added Device Group [%v] with delete_op to config channel", groupName)
 	return true
+}
+
+func updateDeviceGroupInNetworkSlices(groupName string) {
+	filterByDeviceGroup := bson.M{"site-device-group": groupName}
+	rawNetworkSlices, err := dbadapter.CommonDBClient.RestfulAPIGetMany(sliceDataColl, filterByDeviceGroup)
+	if err != nil {
+		logger.DbLog.Errorw("failed to retrieve network slices", "error", err)
+		return
+	}
+	for _, rawNetworkSlice := range rawNetworkSlices {
+		var networkSlice configmodels.Slice
+		if err = json.Unmarshal(configmodels.MapToByte(rawNetworkSlice), &networkSlice); err != nil {
+			logger.DbLog.Errorf("could not unmarshal network slice %v", rawNetworkSlice)
+			continue
+		}
+		networkSlice.SiteDeviceGroup = slices.DeleteFunc(networkSlice.SiteDeviceGroup, func(existingDG string) bool {
+			return groupName == existingDG
+		})
+		msg := &configmodels.ConfigMessage{
+			MsgMethod: configmodels.Post_op,
+			MsgType:   configmodels.Network_slice,
+			Slice:     &networkSlice,
+			SliceName: networkSlice.SliceName,
+		}
+		configChannel <- msg
+		logger.ConfigLog.Infof("network slice [%v] update sent to config channel", networkSlice.SliceName)
+	}
 }
 
 func convertToBps(val int64, unit string) (bitrate int64) {
@@ -85,8 +117,6 @@ func DeviceGroupPostHandler(c *gin.Context, msgOp int) bool {
 	logger.ConfigLog.Infof("query: %v", req.Query)
 	logger.ConfigLog.Infof("printing request body: %v", req.Body)
 	logger.ConfigLog.Infof("url: %v ", req.URL)
-
-	procReq := req.Body.(configmodels.DeviceGroups)
 	procReq, ok := req.Body.(configmodels.DeviceGroups)
 	if !ok {
 		logger.ConfigLog.Errorf("Failed to assert request body as DeviceGroups")
@@ -150,11 +180,12 @@ func NetworkSliceDeleteHandler(c *gin.Context) bool {
 	return true
 }
 
-func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
+func NetworkSlicePostHandler(c *gin.Context, msgOp int) error {
 	sliceName, _ := c.Params.Get("slice-name")
 	if !isValidName(sliceName) {
-		logger.ConfigLog.Errorf("invalid Network Slice name %s. Name needs to match the following regular expression: %s", sliceName, NAME_PATTERN)
-		return false
+		err := fmt.Errorf("invalid Network Slice name %s. Name needs to match the following regular expression: %s", sliceName, NAME_PATTERN)
+		logger.ConfigLog.Errorln(err.Error())
+		return err
 	}
 	logger.ConfigLog.Infof("received slice: %v", sliceName)
 
@@ -166,8 +197,8 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 		err = c.ShouldBindJSON(&request)
 	}
 	if err != nil {
-		logger.ConfigLog.Infof("err %v", err)
-		return false
+		logger.ConfigLog.Errorln(err.Error())
+		return err
 	}
 
 	req := httpwrapper.NewRequest(c.Request, request)
@@ -180,15 +211,27 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	logger.ConfigLog.Infof("url: %v ", req.URL)
 	procReq := req.Body.(configmodels.Slice)
 
+	for _, gnb := range procReq.SiteInfo.GNodeBs {
+		if !isValidName(gnb.Name) {
+			err := fmt.Errorf("invalid gNB name `%s` in Network Slice %s. Name needs to match the following regular expression: %s", gnb.Name, sliceName, NAME_PATTERN)
+			logger.ConfigLog.Errorln(err.Error())
+			return err
+		}
+		if !isValidGnbTac(gnb.Tac) {
+			err := fmt.Errorf("invalid TAC %d for gNB %s in Network Slice %s. TAC must be an integer within the range [1, 16777215]", gnb.Tac, gnb.Name, sliceName)
+			logger.ConfigLog.Errorln(err.Error())
+			return err
+		}
+	}
 	slice := procReq.SliceId
 	logger.ConfigLog.Infof("network slice: sst: %v, sd: %v", slice.Sst, slice.Sd)
 
 	group := procReq.SiteDeviceGroup
 	slices.Sort(group)
-	slices.Compact(group)
+	group = slices.Compact(group)
 	logger.ConfigLog.Infof("number of device groups %v", len(group))
-	for i := 0; i < len(group); i++ {
-		logger.ConfigLog.Infof("device groups(%v) - %v", i+1, group[i])
+	for i, g := range group {
+		logger.ConfigLog.Infof("device groups(%v) - %v", i+1, g)
 	}
 
 	for index, filter := range procReq.ApplicationFilteringRules {
@@ -241,5 +284,5 @@ func NetworkSlicePostHandler(c *gin.Context, msgOp int) bool {
 	msg.SliceName = sliceName
 	configChannel <- &msg
 	logger.ConfigLog.Infof("successfully Added Slice [%v] to config channel", sliceName)
-	return true
+	return nil
 }

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -69,7 +68,7 @@ func GetGnbs(c *gin.Context) {
 // @Produce     json
 // @Param       gnb    body    configmodels.PostGnbRequest    true    "Name and TAC of the gNB"
 // @Security    BearerAuth
-// @Success     201  {object}  nil  "gNB sucessfully created"
+// @Success     201  {object}  nil  "gNB successfully created"
 // @Failure     400  {object}  nil  "Bad request"
 // @Failure     401  {object}  nil  "Authorization failed"
 // @Failure     403  {object}  nil  "Forbidden"
@@ -90,11 +89,13 @@ func PostGnb(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
 		return
 	}
-	if !isValidGnbTac(postGnbParams.Tac) {
-		errorMessage := fmt.Sprintf("invalid gNB TAC '%v'. TAC must be a numeric string within the range [1, 16777215]", postGnbParams.Tac)
-		logger.WebUILog.Errorln(errorMessage)
-		c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
-		return
+	if postGnbParams.Tac != nil {
+		if !isValidGnbTac(*postGnbParams.Tac) {
+			errorMessage := fmt.Sprintf("invalid gNB TAC '%v'. TAC must be an integer within the range [1, 16777215]", *postGnbParams.Tac)
+			logger.WebUILog.Errorln(errorMessage)
+			c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
+			return
+		}
 	}
 	gnb := configmodels.Gnb(postGnbParams)
 	if err := executeGnbTransaction(c.Request.Context(), gnb, updateGnbInNetworkSlices, postGnbOperation); err != nil {
@@ -125,7 +126,7 @@ func postGnbOperation(sc mongo.SessionContext, gnb configmodels.Gnb) error {
 // @Param       gnb-name    path    string                        true    "Name of the gNB"
 // @Param       tac         body    configmodels.PutGnbRequest    true    "TAC of the gNB"
 // @Security    BearerAuth
-// @Success     201  {object}  nil  "gNB sucessfully created"
+// @Success     201  {object}  nil  "gNB successfully created"
 // @Failure     400  {object}  nil  "Bad request"
 // @Failure     401  {object}  nil  "Authorization failed"
 // @Failure     403  {object}  nil  "Forbidden"
@@ -148,14 +149,14 @@ func PutGnb(c *gin.Context) {
 		return
 	}
 	if !isValidGnbTac(putGnbParams.Tac) {
-		errorMessage := fmt.Sprintf("invalid gNB TAC '%v'. TAC must be a numeric string within the range [1, 16777215]", putGnbParams.Tac)
+		errorMessage := fmt.Sprintf("invalid gNB TAC '%v'. TAC must be an integer within the range [1, 16777215]", putGnbParams.Tac)
 		logger.WebUILog.Errorln(errorMessage)
 		c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage})
 		return
 	}
 	putGnb := configmodels.Gnb{
 		Name: gnbName,
-		Tac:  putGnbParams.Tac,
+		Tac:  &putGnbParams.Tac,
 	}
 	if err := executeGnbTransaction(c.Request.Context(), putGnb, updateGnbInNetworkSlices, putGnbOperation); err != nil {
 		logger.WebUILog.Errorw("failed to PUT gNB", "name", gnbName, "error", err)
@@ -177,11 +178,10 @@ func updateGnbInNetworkSlices(gnb configmodels.Gnb) error {
 	filterByGnb := bson.M{
 		"site-info.gNodeBs.name": gnb.Name,
 	}
-	tacNum, _ := strconv.ParseInt(gnb.Tac, 10, 32)
 	return updateInventoryInNetworkSlices(filterByGnb, func(networkSlice *configmodels.Slice) {
 		for i := range networkSlice.SiteInfo.GNodeBs {
 			if networkSlice.SiteInfo.GNodeBs[i].Name == gnb.Name {
-				networkSlice.SiteInfo.GNodeBs[i].Tac = int32(tacNum)
+				networkSlice.SiteInfo.GNodeBs[i].Tac = *gnb.Tac
 			}
 		}
 	})
@@ -247,10 +247,10 @@ func executeGnbTransaction(ctx context.Context, gnb configmodels.Gnb, nsOperatio
 	defer session.EndSession(ctx)
 
 	return mongo.WithSession(ctx, session, func(sc mongo.SessionContext) error {
-		if err := session.StartTransaction(); err != nil {
+		if err = session.StartTransaction(); err != nil {
 			return fmt.Errorf("failed to start transaction: %w", err)
 		}
-		if err := gnbOperation(sc, gnb); err != nil {
+		if err = gnbOperation(sc, gnb); err != nil {
 			if abortErr := session.AbortTransaction(sc); abortErr != nil {
 				logger.DbLog.Errorw("failed to abort transaction", "error", abortErr)
 			}
@@ -486,10 +486,10 @@ func executeUpfTransaction(ctx context.Context, upf configmodels.Upf, nsOperatio
 	defer session.EndSession(ctx)
 
 	return mongo.WithSession(ctx, session, func(sc mongo.SessionContext) error {
-		if err := session.StartTransaction(); err != nil {
+		if err = session.StartTransaction(); err != nil {
 			return fmt.Errorf("failed to start transaction: %w", err)
 		}
-		if err := upfOperation(sc, upf); err != nil {
+		if err = upfOperation(sc, upf); err != nil {
 			if abortErr := session.AbortTransaction(sc); abortErr != nil {
 				logger.DbLog.Errorw("failed to abort transaction", "error", abortErr)
 			}

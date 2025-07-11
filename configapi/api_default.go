@@ -44,7 +44,7 @@ func GetDeviceGroups(c *gin.Context) {
 	setCorsHeader(c)
 	logger.WebUILog.Infoln("Get all Device Groups")
 
-	var deviceGroups []string = make([]string, 0)
+	deviceGroups := make([]string, 0)
 	rawDeviceGroups, errGetMany := dbadapter.CommonDBClient.RestfulAPIGetMany(devGroupDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
@@ -79,8 +79,12 @@ func GetDeviceGroupByName(c *gin.Context) {
 	if errGetOne != nil {
 		logger.DbLog.Warnln(errGetOne)
 	}
-	json.Unmarshal(configmodels.MapToByte(rawDeviceGroup), &deviceGroup)
-
+	err := json.Unmarshal(configmodels.MapToByte(rawDeviceGroup), &deviceGroup)
+	if err != nil {
+		logger.DbLog.Errorw("failed to unmarshal device group", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve device group"})
+		return
+	}
 	if deviceGroup.DeviceGroupName == "" {
 		c.JSON(http.StatusNotFound, nil)
 	} else {
@@ -95,10 +99,9 @@ func GetDeviceGroupByName(c *gin.Context) {
 // @Param        deviceGroupName    path    string    true    " "
 // @Security     BearerAuth
 // @Success      200  {object}  nil  "Device group deleted successfully"
-// @Failure      400  {object}  nil  "Invalid device group name provided"
+// @Failure      400  {object}  nil  "Bad request"
 // @Failure      401  {object}  nil  "Authorization failed"
 // @Failure      403  {object}  nil  "Forbidden"
-// @Failure      500  {object}  nil  "Error deleting device group"
 // @Router       /config/v1/device-group/{deviceGroupName}  [delete]
 func DeviceGroupGroupNameDelete(c *gin.Context) {
 	logger.ConfigLog.Debugf("DeviceGroupGroupNameDelete")
@@ -162,7 +165,7 @@ func GetNetworkSlices(c *gin.Context) {
 	setCorsHeader(c)
 	logger.WebUILog.Infoln("Get all Network Slices")
 
-	var networkSlices []string = make([]string, 0)
+	networkSlices := make([]string, 0)
 	rawNetworkSlices, errGetMany := dbadapter.CommonDBClient.RestfulAPIGetMany(sliceDataColl, bson.M{})
 	if errGetMany != nil {
 		logger.DbLog.Warnln(errGetMany)
@@ -197,8 +200,12 @@ func GetNetworkSliceByName(c *gin.Context) {
 	if errGetOne != nil {
 		logger.DbLog.Warnln(errGetOne)
 	}
-	json.Unmarshal(configmodels.MapToByte(rawNetworkSlice), &networkSlice)
-
+	err := json.Unmarshal(configmodels.MapToByte(rawNetworkSlice), &networkSlice)
+	if err != nil {
+		logger.DbLog.Errorw("failed to unmarshal network slice", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve network slice"})
+		return
+	}
 	if networkSlice.SliceName == "" {
 		c.JSON(http.StatusNotFound, nil)
 	} else {
@@ -243,19 +250,19 @@ func NetworkSliceSliceNameDelete(c *gin.Context) {
 // @Router       /config/v1/network-slice/{sliceName}  [post]
 func NetworkSliceSliceNamePost(c *gin.Context) {
 	logger.ConfigLog.Debugf("Received NetworkSliceSliceNamePost ")
-	if ret := NetworkSlicePostHandler(c, configmodels.Post_op); ret {
-		c.JSON(http.StatusOK, gin.H{})
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{})
+	if err := NetworkSlicePostHandler(c, configmodels.Post_op); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+	c.JSON(http.StatusOK, gin.H{})
 }
 
 // NetworkSliceSliceNamePut -
 func NetworkSliceSliceNamePut(c *gin.Context) {
 	logger.ConfigLog.Debugf("Received NetworkSliceSliceNamePut ")
-	if ret := NetworkSlicePostHandler(c, configmodels.Put_op); ret {
-		c.JSON(http.StatusOK, gin.H{})
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{})
+	if err := NetworkSlicePostHandler(c, configmodels.Put_op); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
+	c.JSON(http.StatusOK, gin.H{})
 }
