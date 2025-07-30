@@ -14,12 +14,16 @@ import (
 var notifyDispatcher *event.Dispatcher
 
 func RegisterNotifyDispatcher() error {
+	logger.NotifyEventLog.Infof("RegisterNotifyDispatcher() called")
 	notifyDispatcher = event.NewDispatcher()
 	if err := notifyDispatcher.Register(NotifyListener{},
 		SendSMpolicyUpdateNotifyEventName,
 		SendSMpolicyTerminationNotifyEventName); err != nil {
 		return err
 	}
+	logger.NotifyEventLog.Infof("Event handlers registered: %s, %s",
+		SendSMpolicyUpdateNotifyEventName,
+		SendSMpolicyTerminationNotifyEventName)
 	return nil
 }
 
@@ -32,7 +36,7 @@ func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyN
 		return
 	}
 
-	logger.NotifyEventLog.Debugf("Sending SM Policy Update Notify Event to dispatcher")
+	logger.NotifyEventLog.Infof("Sending SM Policy Update Notify Event to dispatcher")
 
 	err := notifyDispatcher.Dispatch(SendSMpolicyUpdateNotifyEventName, SendSMpolicyUpdateNotifyEvent{
 		uri:     uri,
