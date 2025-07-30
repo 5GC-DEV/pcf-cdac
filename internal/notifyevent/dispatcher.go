@@ -24,15 +24,25 @@ func RegisterNotifyDispatcher() error {
 }
 
 func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyNotification) {
+	logger.NotifyEventLog.Infof("DispatchSendSMPolicyUpdateNotifyEvent triggered")
+	logger.NotifyEventLog.Infof("Target URI: %s", uri)
+
 	if notifyDispatcher == nil {
 		logger.NotifyEventLog.Errorf("notifyDispatcher is nil")
+		return
 	}
+
+	logger.NotifyEventLog.Debugf("Sending SM Policy Update Notify Event to dispatcher")
+
 	err := notifyDispatcher.Dispatch(SendSMpolicyUpdateNotifyEventName, SendSMpolicyUpdateNotifyEvent{
 		uri:     uri,
 		request: request,
 	})
+
 	if err != nil {
-		logger.NotifyEventLog.Errorln(err)
+		logger.NotifyEventLog.Errorf("Failed to dispatch SM Policy Update Notify Event: %v", err)
+	} else {
+		logger.NotifyEventLog.Infof("Successfully dispatched SM Policy Update Notify Event")
 	}
 }
 
