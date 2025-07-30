@@ -429,21 +429,38 @@ func (ue *UeContext) SMPolicyFindByIpv6(v6 string) *UeSmPolicyData {
 func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 	v4 string, sNssai *models.Snssai, dnn string, ipDomain string,
 ) *UeSmPolicyData {
-	for _, smPolicy := range ue.SmPolicyData {
+	for id, smPolicy := range ue.SmPolicyData {
 		policyContext := smPolicy.PolicyContext
-		if policyContext.Ipv4Address == v4 {
-			if dnn != "" && policyContext.Dnn != dnn {
-				continue
-			}
-			if ipDomain != "" && policyContext.IpDomain != "" && policyContext.IpDomain != ipDomain {
-				continue
-			}
-			if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
-				continue
-			}
-			return smPolicy
+
+		if policyContext.Ipv4Address != v4 {
+			logger.CtxLog.Infof("SMPolicy[%s] skipped: IPv4 mismatch (got %s, expected %s)",
+				id, policyContext.Ipv4Address, v4)
+			continue
 		}
+
+		if dnn != "" && policyContext.Dnn != dnn {
+			logger.CtxLog.Infof("SMPolicy[%s] skipped: DNN mismatch (got %s, expected %s)",
+				id, policyContext.Dnn, dnn)
+			continue
+		}
+
+		if ipDomain != "" && policyContext.IpDomain != "" && policyContext.IpDomain != ipDomain {
+			logger.CtxLog.Infof("SMPolicy[%s] skipped: IP domain mismatch (got %s, expected %s)",
+				id, policyContext.IpDomain, ipDomain)
+			continue
+		}
+
+		if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+			logger.CtxLog.Infof("SMPolicy[%s] skipped: S-NSSAI mismatch (got %+v, expected %+v)",
+				id, policyContext.SliceInfo, sNssai)
+			continue
+		}
+
+		logger.CtxLog.Infof("SMPolicy[%s] matched for IPv4: %s", id, v4)
+		return smPolicy
 	}
+	logger.CtxLog.Infof("No matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
+		v4, dnn, ipDomain, sNssai)
 	return nil
 }
 
