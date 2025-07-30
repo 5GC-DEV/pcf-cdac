@@ -307,12 +307,28 @@ func (c *PCFContext) SessionBinding(req *models.AppSessionContextReqData) (*UeSm
 		})
 	}
 
+	/*if req.UeIpv4 != "" && selectedUE == nil {
+		c.UePool.Range(func(key, value interface{}) bool {
+			ue := value.(*UeContext)
+			if ue.UeIpv4 == req.UeIpv4 {
+				selectedUE = ue
+				return false
+			}
+			return true
+		})
+	}*/
+
 	if selectedUE != nil {
 		policy, err = ueSMPolicyFindByAppSessionContext(selectedUE, req)
 	} else {
 		c.UePool.Range(func(key, value interface{}) bool {
 			ue := value.(*UeContext)
-			policy, err = ueSMPolicyFindByAppSessionContext(ue, req)
+			p, e := ueSMPolicyFindByAppSessionContext(ue, req)
+			if p != nil {
+				policy = p
+				err = e
+				return false // Stop iteration, found the match!
+			}
 			return true
 		})
 	}
