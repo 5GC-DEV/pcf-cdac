@@ -15,7 +15,7 @@ var notifyDispatcher *event.Dispatcher
 
 func RegisterNotifyDispatcher() error {
 	logger.NotifyEventLog.Infof("RegisterNotifyDispatcher() called")
-	notifyDispatcher = event.NewDispatcher()
+	notifyDispatcher = event.NewDispatcher(5, 1)
 	if err := notifyDispatcher.Register(NotifyListener{},
 		SendSMpolicyUpdateNotifyEventName,
 		SendSMpolicyTerminationNotifyEventName); err != nil {
