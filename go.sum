@@ -2,6 +2,8 @@ github.com/5GC-DEV/config5g-cdac v0.2.1 h1:7Cqwmqh5jqeWtwYTrITflrGotglIRBIb1P3EF
 github.com/5GC-DEV/config5g-cdac v0.2.1/go.mod h1:0OEL6UoNKKlx2tlNSoKpRtzckwxR2SL+pRBDAOCT4BU=
 github.com/5GC-DEV/event v0.0.0-20250731041559-dd0f12fa04b7 h1:cmAg4cyOipR76ThOUFKrFACqQHL+TMNWOHa2SBsiWm0=
 github.com/5GC-DEV/event v0.0.0-20250731041559-dd0f12fa04b7/go.mod h1:1c1txRb2QALAgLrRABwrydgjR/hHq/N7m4cwhhL+ggk=
+github.com/5GC-DEV/event v0.0.0-20250731045514-c106a8a1ca20 h1:JR/F2trII88q4fO/IRsRL8mPRucw+nnH0kBuz4QW8hE=
+github.com/5GC-DEV/event v0.0.0-20250731045514-c106a8a1ca20/go.mod h1:1c1txRb2QALAgLrRABwrydgjR/hHq/N7m4cwhhL+ggk=
 github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d h1:Byv0BzEl3/e6D5CLfI0j/7hiIEtvGVFPCZ7Ei2oq8iQ=
