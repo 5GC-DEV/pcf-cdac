@@ -20,7 +20,7 @@ require (
 )
 
 require (
-	github.com/5GC-DEV/event v0.0.0-20250731045514-c106a8a1ca20
+	github.com/5GC-DEV/event v0.0.0-20250731053825-052147cbf49a
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.13.3 // indirect
