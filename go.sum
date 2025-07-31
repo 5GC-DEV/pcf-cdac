@@ -8,6 +8,8 @@ github.com/5GC-DEV/event v0.0.0-20250731053825-052147cbf49a h1:bFbU1rCx61slvQVHR
 github.com/5GC-DEV/event v0.0.0-20250731053825-052147cbf49a/go.mod h1:1c1txRb2QALAgLrRABwrydgjR/hHq/N7m4cwhhL+ggk=
 github.com/5GC-DEV/event v0.0.0-20250731070903-2f273b5e79a0 h1:+qRrlv9tIEDo1JfJG6rbsDmu71t2s+Oq2QGkxe/1iS4=
 github.com/5GC-DEV/event v0.0.0-20250731070903-2f273b5e79a0/go.mod h1:1c1txRb2QALAgLrRABwrydgjR/hHq/N7m4cwhhL+ggk=
+github.com/5GC-DEV/event v0.0.0-20250731073306-ad65d513d554 h1:Q36tgw/nnAhC1xs5MqsMKTjkxY/IgxZGOi2R2sUPOlc=
+github.com/5GC-DEV/event v0.0.0-20250731073306-ad65d513d554/go.mod h1:1c1txRb2QALAgLrRABwrydgjR/hHq/N7m4cwhhL+ggk=
 github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d h1:Byv0BzEl3/e6D5CLfI0j/7hiIEtvGVFPCZ7Ei2oq8iQ=
