@@ -14,13 +14,13 @@ require (
 	github.com/omec-project/util v1.3.2
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli/v3 v3.3.8
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
+	github.com/5GC-DEV/event v0.0.0-20250731041559-dd0f12fa04b7
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.13.3 // indirect
