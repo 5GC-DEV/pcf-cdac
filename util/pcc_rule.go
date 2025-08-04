@@ -76,7 +76,8 @@ func GetUmId(sponId, aspId string) string {
 
 // Get Packet Filter Identity(PackFiltId-%d)
 func GetPackFiltId(id int32) string {
-	return fmt.Sprintf("PackFiltId-%d", id)
+	// return fmt.Sprintf("PackFiltId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Create Pcc Rule with param id, precedence, flow information, appID
