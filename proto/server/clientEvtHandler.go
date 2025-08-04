@@ -459,6 +459,8 @@ func clientEventMachine(client *clientNF) {
 	for {
 		select {
 		case t := <-ticker.C:
+			start := time.Now()
+			client.clientLog.Infof("[TimerTrigger] Started at: %v", start)
 			if client.ConfigCheckUrl != "" {
 				go func() {
 					c := &http.Client{}
@@ -493,11 +495,12 @@ func clientEventMachine(client *clientNF) {
 					}
 				}()
 			}
-
+			client.clientLog.Infof("[TimerTrigger] Completed at: %v, Duration: %v", time.Now(), time.Since(start))
 		case configMsg := <-client.outStandingPushConfig:
+			start := time.Now()
+			client.clientLog.Infof("[PushConfig] Received at: %v", start)
 			var lastDevGroup *configmodels.DeviceGroups
 			var lastSlice *configmodels.Slice
-
 			// update config snapshot
 			if configMsg.DevGroup != nil {
 				lastDevGroup = client.devgroupsConfigClient[configMsg.DevGroupName]
@@ -580,10 +583,11 @@ func clientEventMachine(client *clientNF) {
 					}
 				}
 			}
-
+			client.clientLog.Infof("[PushConfig] Processed at: %v, Duration: %v", time.Now(), time.Since(start))
 		case cReqMsg := <-client.tempGrpcReq:
 			client.clientLog.Infof("Config changed %t and NewClient %t\n", client.configChanged, cReqMsg.newClient)
-
+			start := time.Now()
+			client.clientLog.Infof("[GRPCReq] Start processing at: %v", start)
 			sliceDetails := &protos.NetworkSliceResponse{}
 			sliceDetails.RestartCounter = restartCounter
 
@@ -744,6 +748,7 @@ func clientEventMachine(client *clientNF) {
 			}
 			client.clientLog.Infoln("send slice success")
 			client.configChanged = false // TODO RACE CONDITION
+			client.clientLog.Infof("[GRPCReq] Finished sending at: %v, Total Duration: %v", time.Now(), time.Since(start))
 		}
 	}
 }

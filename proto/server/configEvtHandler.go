@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/webconsole/backend/factory"
@@ -57,7 +58,11 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 	}
 	for {
 		logger.ConfigLog.Infoln("waiting for configuration event")
+		startTime := time.Now() // Timestamp when we start waiting
 		configMsg := <-configMsgChan
+		receiveTime := time.Now() // Timestamp when config received
+		logger.ConfigLog.Infof("Timestamp when start waiting: %v", startTime.Format(time.RFC3339Nano))
+		logger.ConfigLog.Infof("Config message received at: %v", receiveTime.Format(time.RFC3339Nano))
 		if configMsg.MsgType == configmodels.Sub_data {
 			imsiVal := strings.ReplaceAll(configMsg.Imsi, "imsi-", "")
 			logger.ConfigLog.Infoln("received imsi from config channel:", imsiVal)
@@ -92,8 +97,10 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 				logger.ConfigLog.Infoln("no client available. No need to send config")
 			}
 			for _, client := range clientNFPool {
-				logger.ConfigLog.Infoln("push config for client:", client.id)
+				logger.ConfigLog.Infof("Sending config to client: %v", client.id)
+				clientStart := time.Now()
 				client.outStandingPushConfig <- configMsg
+				logger.ConfigLog.Infof("Sent config to client %v in %v ms", client.id, time.Since(clientStart).Milliseconds())
 			}
 		} else {
 			if configMsg.MsgType != configmodels.Sub_data {
@@ -115,10 +122,14 @@ func configHandler(configMsgChan chan *configmodels.ConfigMessage, configReceive
 				logger.ConfigLog.Infoln("no client available. No need to send config")
 			}
 			for _, client := range clientNFPool {
-				logger.ConfigLog.Infoln("push config for client:", client.id)
+				logger.ConfigLog.Infof("Sending config to client: %v", client.id)
+				clientStart := time.Now()
 				client.outStandingPushConfig <- configMsg
+				logger.ConfigLog.Infof("Sent config to client %v in %v ms", client.id, time.Since(clientStart).Milliseconds())
 			}
 		}
+		totalDuration := time.Since(startTime)
+		logger.ConfigLog.Infof("Total time from waiting to config pushed: %v ms", totalDuration.Milliseconds())
 	}
 }
 
@@ -135,7 +146,10 @@ func handleSubscriberDelete(imsi string) {
 }
 
 func handleDeviceGroupPost(configMsg *configmodels.ConfigMessage, subsUpdateChan chan *Update5GSubscriberMsg) {
+	start := time.Now()
+	logger.AppLog.Infof("handleDeviceGroupPost started for group: %s", configMsg.DevGroupName)
 	rwLock.Lock()
+	defer rwLock.Unlock()
 	if factory.WebUIConfig.Configuration.Mode5G {
 		var config5gMsg Update5GSubscriberMsg
 		config5gMsg.Msg = configMsg
@@ -148,7 +162,9 @@ func handleDeviceGroupPost(configMsg *configmodels.ConfigMessage, subsUpdateChan
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
-	rwLock.Unlock()
+	duration := time.Since(start)
+	logger.AppLog.Infof("handleDeviceGroupPost completed for group: %s in %v", configMsg.DevGroupName, duration)
+	// rwLock.Unlock()
 }
 
 func handleDeviceGroupDelete(configMsg *configmodels.ConfigMessage, subsUpdateChan chan *Update5GSubscriberMsg) {
@@ -168,7 +184,10 @@ func handleDeviceGroupDelete(configMsg *configmodels.ConfigMessage, subsUpdateCh
 }
 
 func handleNetworkSlicePost(configMsg *configmodels.ConfigMessage, subsUpdateChan chan *Update5GSubscriberMsg) {
+	start := time.Now()
+	logger.AppLog.Infof("handleNetworkSlicePost started: %s", configMsg.DevGroupName)
 	rwLock.Lock()
+	defer rwLock.Unlock()
 	if factory.WebUIConfig.Configuration.Mode5G {
 		var config5gMsg Update5GSubscriberMsg
 		config5gMsg.Msg = configMsg
@@ -187,7 +206,9 @@ func handleNetworkSlicePost(configMsg *configmodels.ConfigMessage, subsUpdateCha
 			logger.ConfigLog.Warnf("sending Pebble notification failed: %s. continuing silently", err.Error())
 		}
 	}
-	rwLock.Unlock()
+	duration := time.Since(start)
+	logger.AppLog.Infof("handleNetworkSlicePost completed : %s in %v", configMsg.DevGroupName, duration)
+	// rwLock.Unlock()
 }
 
 func handleNetworkSliceDelete(configMsg *configmodels.ConfigMessage, subsUpdateChan chan *Update5GSubscriberMsg) {
@@ -330,6 +351,8 @@ func getDeletedImsisList(group, prevGroup *configmodels.DeviceGroups) (dimsis []
 }
 
 func updateAmPolicyData(imsi string) {
+	start := time.Now()
+	logger.AppLog.Infof("updateAmPolicyData to DB")
 	// ampolicydata
 	var amPolicy models.AmPolicyData
 	amPolicy.SubscCats = append(amPolicy.SubscCats, "aether")
@@ -340,9 +363,13 @@ func updateAmPolicyData(imsi string) {
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
+	duration := time.Since(start)
+	logger.AppLog.Infof("updateAmPolicyData completed :%v", duration)
 }
 
 func updateSmPolicyData(snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, imsi string) {
+	start := time.Now()
+	logger.AppLog.Infof("updateSmPolicyData to DB")
 	var smPolicyData models.SmPolicyData
 	var smPolicySnssaiData models.SmPolicySnssaiData
 	// Iterate over all DNNs in the map
@@ -366,9 +393,13 @@ func updateSmPolicyData(snssai *models.Snssai, dnnMap map[string][]configmodels.
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
+	duration := time.Since(start)
+	logger.AppLog.Infof("updateSmPolicyData completed :%v", duration)
 }
 
 func updateAmProvisionedData(snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) {
+	start := time.Now()
+	logger.AppLog.Infof("updateAmProvisionedData to DB")
 	for dnn, ueDnnQosList := range dnnMap {
 		aggregatedQoS := aggregateQoS(ueDnnQosList) // Combine multiple QoS into one if needed
 		amData := models.AccessAndMobilitySubscriptionData{
@@ -399,9 +430,13 @@ func updateAmProvisionedData(snssai *models.Snssai, dnnMap map[string][]configmo
 			logger.DbLog.Warnln(errPost)
 		}
 	}
+	duration := time.Since(start)
+	logger.AppLog.Infof("updateAmProvisionedData completed :%v", duration)
 }
 
 func updateSmProvisionedData(snssai *models.Snssai, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, mcc, mnc, imsi string) {
+	start := time.Now()
+	logger.AppLog.Infof("updateSmProvisionedData to DB")
 	// Define the filter to find the existing record for this UE
 	filter := bson.M{
 		"ueId":          "imsi-" + imsi,
@@ -496,6 +531,8 @@ func updateSmProvisionedData(snssai *models.Snssai, dnnMap map[string][]configmo
 	if errPost != nil {
 		logger.DbLog.Warnln("Failed to update DNN configuration:", errPost)
 	}
+	duration := time.Since(start)
+	logger.AppLog.Infof("updateSmProvisionedData completed :%v", duration)
 }
 
 func aggregateQoS(qosList []configmodels.DeviceGroupsIpDomainExpandedUeDnnQos) configmodels.DeviceGroupsIpDomainExpandedUeDnnQos {
@@ -512,6 +549,8 @@ func aggregateQoS(qosList []configmodels.DeviceGroupsIpDomainExpandedUeDnnQos) c
 }
 
 func updateSmfSelectionProvisionedData(snssai *models.Snssai, mcc, mnc string, dnnMap map[string][]configmodels.DeviceGroupsIpDomainExpandedUeDnnQos, imsi string) {
+	start := time.Now()
+	logger.AppLog.Infof("updateSmfSelectionProvisionedData to DB")
 	// Create the base SmfSelectionSubscriptionData structure
 	smfSelData := models.SmfSelectionSubscriptionData{
 		SubscribedSnssaiInfos: map[string]models.SnssaiInfo{},
@@ -552,6 +591,8 @@ func updateSmfSelectionProvisionedData(snssai *models.Snssai, mcc, mnc string, d
 	if errPost != nil {
 		logger.DbLog.Warnln(errPost)
 	}
+	duration := time.Since(start)
+	logger.AppLog.Infof("updateSmfSelectionProvisionedData completed :%v", duration)
 }
 
 func isDeviceGroupExistInSlice(msg *Update5GSubscriberMsg) *configmodels.Slice {
@@ -623,9 +664,12 @@ func removeSubscriberEntriesRelatedToDeviceGroups(mcc, mnc, imsi string) {
 
 func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 	for confData := range confChan {
+		startTime := time.Now()
+		logger.AppLog.Infof("Start processing config update for type: %v at %v", confData.Msg.MsgType, startTime)
 		switch confData.Msg.MsgType {
 		case configmodels.Device_group:
 			rwLock.RLock()
+			deferTime := time.Now()
 			/* is this devicegroup part of any existing slice */
 			slice := isDeviceGroupExistInSlice(confData)
 			if slice != nil {
@@ -660,8 +704,10 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 				}
 			}
 			rwLock.RUnlock()
+			logger.AppLog.Infof("Completed Device Group processing in %v", time.Since(deferTime))
 		case configmodels.Network_slice:
 			rwLock.RLock()
+			deferTime := time.Now()
 			logger.WebUILog.Debugln("insert/update Network Slice")
 			slice := confData.Msg.Slice
 			if slice == nil && confData.PrevSlice != nil {
@@ -706,7 +752,9 @@ func Config5GUpdateHandle(confChan chan *Update5GSubscriberMsg) {
 				}
 			}
 			rwLock.RUnlock()
+			logger.AppLog.Infof("Completed Network Slice processing in %v", time.Since(deferTime))
 		}
+		logger.AppLog.Infof("Finished processing config update of type: %v. Total duration: %v", confData.Msg.MsgType, time.Since(startTime))
 	} // end of for loop
 }
 
