@@ -103,7 +103,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 		for i := range flowInfos {
 			flowInfos[i].PackFiltId = util.GetPackFiltId(smPolicy.PackFiltIdGenarator)
 			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].PackFiltId] = pccRule.PccRuleId
-			logger.PolicyAuthorizationlog.Debugf("Assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].PackFiltId, pccRule.PccRuleId)
+			logger.PolicyAuthorizationlog.Infof("Assigned PackFiltId [%s] to PCC Rule ID [%s]", flowInfos[i].PackFiltId, pccRule.PccRuleId)
 			smPolicy.PackFiltIdGenarator++
 		}
 
@@ -253,24 +253,52 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				var5qi = util.MediaTypeTo5qiMap[medComp.MedType]
 			}
 			logger.PolicyAuthorizationlog.Debugf("Processing Media Component[%d]: AppID=%s", medComp.MedCompN, appID)
+			/*if medComp.MedSubComps != nil {
+			logger.PolicyAuthorizationlog.Debugf("Handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.MedSubComps))
+			for _, medSubComp := range medComp.MedSubComps {
+				logger.PolicyAuthorizationlog.Debugf("Processing Media SubComponent: FNum [%d]", medSubComp.FNum)
+
+				if tempPccRule, problemDetail := handleMediaSubComponent(smPolicy, &medComp, &medSubComp, var5qi); problemDetail != nil {
+					logger.PolicyAuthorizationlog.Errorf("Error in handleMediaSubComponent for FNum [%d]: %v", medSubComp.FNum, problemDetail)
+					return nil, "", problemDetail
+				} else {
+					pccRule = tempPccRule
+				}
+
+				key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
+				relatedPccRuleIds[key] = pccRule.PccRuleId
+				logger.PolicyAuthorizationlog.Debugf("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
+
+				updateSMpolicy = true
+			}
+			continue*/
 			if medComp.MedSubComps != nil {
 				logger.PolicyAuthorizationlog.Debugf("Handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.MedSubComps))
+				var allFlowInfos []models.FlowInformation
+				var medSubCompsList []models.MediaSubComponent
 				for _, medSubComp := range medComp.MedSubComps {
-					logger.PolicyAuthorizationlog.Debugf("Processing Media SubComponent: FNum [%d]", medSubComp.FNum)
+					logger.PolicyAuthorizationlog.Debugf("Extracting FlowInfos for FNum [%d]", medSubComp.FNum)
 
-					if tempPccRule, problemDetail := handleMediaSubComponent(smPolicy, &medComp, &medSubComp, var5qi); problemDetail != nil {
-						logger.PolicyAuthorizationlog.Errorf("Error in handleMediaSubComponent for FNum [%d]: %v", medSubComp.FNum, problemDetail)
-						return nil, "", problemDetail
+					if flowInfos, err := getFlowInfos(&medSubComp); err != nil {
+						logger.PolicyAuthorizationlog.Errorf("Failed to get FlowInfos for FNum [%d]: %v", medSubComp.FNum, err)
+						problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
+						return nil, "", &problemDetail
 					} else {
-						pccRule = tempPccRule
+						allFlowInfos = append(allFlowInfos, flowInfos...)
+						medSubCompsList = append(medSubCompsList, medSubComp)
 					}
-
+				}
+				if tempPccRule, problemDetail := handleCombinedMediaSubComponents(smPolicy, &medComp, medSubCompsList, var5qi, allFlowInfos); problemDetail != nil {
+					return nil, "", problemDetail
+				} else {
+					pccRule = tempPccRule
+				}
+				for _, medSubComp := range medSubCompsList {
 					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
 					relatedPccRuleIds[key] = pccRule.PccRuleId
 					logger.PolicyAuthorizationlog.Debugf("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
-
-					updateSMpolicy = true
 				}
+				updateSMpolicy = true
 				continue
 			} else if medComp.AfAppId != "" {
 				appID = medComp.AfAppId
@@ -499,6 +527,57 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
 	}
 	return appSessCtx, locationHeader, nil
+}
+
+func handleCombinedMediaSubComponents(smPolicy *pcf_context.UeSmPolicyData,
+	medComp *models.MediaComponent,
+	medSubComps []models.MediaSubComponent,
+	var5qi int32,
+	flowInfos []models.FlowInformation,
+) (*models.PccRule, *models.ProblemDetails) {
+
+	pccRule := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.PccRules, flowInfos)
+	if pccRule == nil {
+		logger.PolicyAuthorizationlog.Debugf("No existing PCC Rule found for combined FlowInfos. Creating new PCC Rule.")
+
+		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
+		logger.PolicyAuthorizationlog.Debugf("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
+
+		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
+		logger.PolicyAuthorizationlog.Debugf("Created QosData ID [%s]", qosData.QosId, var5qi)
+
+		if var5qi <= 4 {
+			var finalUL, finalDL bool
+			for _, medSubComp := range medSubComps {
+				var ul, dl bool
+				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, &medSubComp)
+				finalUL = finalUL || ul
+				finalDL = finalDL || dl
+			}
+
+			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, finalUL, finalDL); problemDetails != nil {
+				return nil, problemDetails
+			}
+		}
+
+		for i := range flowInfos {
+			flowInfos[i].PackFiltId = util.GetPackFiltId(smPolicy.PackFiltIdGenarator)
+			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].PackFiltId] = pccRule.PccRuleId
+			smPolicy.PackFiltIdGenarator++
+		}
+
+		pccRule.FlowInfos = flowInfos
+
+		// Use FStatus from first subcomp (or logic to merge them)
+		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
+
+		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
+		smPolicy.PccRuleIdGenarator++
+	}
+
+	smPolicy.PolicyDecision.PccRules[pccRule.PccRuleId] = pccRule
+	return pccRule, nil
 }
 
 // HandleDeleteAppSession - Deletes an existing Individual Application Session Context
