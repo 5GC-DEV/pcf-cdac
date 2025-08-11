@@ -243,7 +243,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		// Handle Pcc rules
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 		for _, medComp := range ascReqData.MedComponents {
-			logger.PolicyAuthorizationlog.Debugf("Processing %d MediaComponents", len(ascReqData.MedComponents))
+			logger.PolicyAuthorizationlog.Infof("Processing %d MediaComponents", len(ascReqData.MedComponents))
 			var pccRule *models.PccRule
 			var appID string
 			var routeReq *models.AfRoutingRequirement
@@ -252,7 +252,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			if medComp.MedType != "" {
 				var5qi = util.MediaTypeTo5qiMap[medComp.MedType]
 			}
-			logger.PolicyAuthorizationlog.Debugf("Processing Media Component[%d]: AppID=%s", medComp.MedCompN, appID)
+			logger.PolicyAuthorizationlog.Infof("Processing Media Component[%d]: AppID=%s", medComp.MedCompN, appID)
 			/*if medComp.MedSubComps != nil {
 			logger.PolicyAuthorizationlog.Debugf("Handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.MedSubComps))
 			for _, medSubComp := range medComp.MedSubComps {
@@ -273,11 +273,11 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			}
 			continue*/
 			if medComp.MedSubComps != nil {
-				logger.PolicyAuthorizationlog.Debugf("Handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.MedSubComps))
+				logger.PolicyAuthorizationlog.Infof("Handling Media Component [%d] with %d sub-components", medComp.MedCompN, len(medComp.MedSubComps))
 				var allFlowInfos []models.FlowInformation
 				var medSubCompsList []models.MediaSubComponent
 				for _, medSubComp := range medComp.MedSubComps {
-					logger.PolicyAuthorizationlog.Debugf("Extracting FlowInfos for FNum [%d]", medSubComp.FNum)
+					logger.PolicyAuthorizationlog.Infof("Extracting FlowInfos for FNum [%d]", medSubComp.FNum)
 
 					if flowInfos, err := getFlowInfos(&medSubComp); err != nil {
 						logger.PolicyAuthorizationlog.Errorf("Failed to get FlowInfos for FNum [%d]: %v", medSubComp.FNum, err)
@@ -296,18 +296,18 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				for _, medSubComp := range medSubCompsList {
 					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
 					relatedPccRuleIds[key] = pccRule.PccRuleId
-					logger.PolicyAuthorizationlog.Debugf("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
+					logger.PolicyAuthorizationlog.Infof("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
 				}
 				updateSMpolicy = true
 				continue
 			} else if medComp.AfAppId != "" {
 				appID = medComp.AfAppId
 				routeReq = medComp.AfRoutReq
-				logger.PolicyAuthorizationlog.Debugf("Using AF App ID [%s] and RouteReq [%v] from Media Component [%d]", appID, routeReq, medComp.MedCompN)
+				logger.PolicyAuthorizationlog.Infof("Using AF App ID [%s] and RouteReq [%v] from Media Component [%d]", appID, routeReq, medComp.MedCompN)
 			} else if ascReqData.AfAppId != "" {
 				appID = ascReqData.AfAppId
 				routeReq = ascReqData.AfRoutReq
-				logger.PolicyAuthorizationlog.Debugf("Using AF App ID [%s] and RouteReq [%v] from AppSessionContext", appID, routeReq)
+				logger.PolicyAuthorizationlog.Infof("Using AF App ID [%s] and RouteReq [%v] from AppSessionContext", appID, routeReq)
 			} else {
 				logger.PolicyAuthorizationlog.Warnf("Media Component [%d] lacks both sub-components and AfAppId", medComp.MedCompN)
 				problemDetail := util.GetProblemDetail("Media Component needs flows of subComp or afAppId",
@@ -317,7 +317,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			// Find pccRule by AfAppId, otherwise create a new pcc rule
 			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
 			if pccRule == nil {
-				logger.PolicyAuthorizationlog.Debugf("No existing PCC Rule found for AppID: %s, creating a new one", appID)
+				logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for AppID: %s, creating a new one", appID)
 				pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, appID)
 
 				// Set QoS Data
@@ -529,13 +529,12 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	return appSessCtx, locationHeader, nil
 }
 
-func handleCombinedMediaSubComponents(smPolicy *pcf_context.UeSmPolicyData,
+/*func handleCombinedMediaSubComponents(smPolicy *pcf_context.UeSmPolicyData,
 	medComp *models.MediaComponent,
 	medSubComps []models.MediaSubComponent,
 	var5qi int32,
 	flowInfos []models.FlowInformation,
 ) (*models.PccRule, *models.ProblemDetails) {
-
 	pccRule := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.PccRules, flowInfos)
 	if pccRule == nil {
 		logger.PolicyAuthorizationlog.Debugf("No existing PCC Rule found for combined FlowInfos. Creating new PCC Rule.")
@@ -574,6 +573,89 @@ func handleCombinedMediaSubComponents(smPolicy *pcf_context.UeSmPolicyData,
 
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
+	}
+
+	smPolicy.PolicyDecision.PccRules[pccRule.PccRuleId] = pccRule
+	return pccRule, nil
+} */
+
+func handleCombinedMediaSubComponents(
+	smPolicy *pcf_context.UeSmPolicyData,
+	medComp *models.MediaComponent,
+	medSubComps []models.MediaSubComponent,
+	var5qi int32,
+	flowInfos []models.FlowInformation,
+) (*models.PccRule, *models.ProblemDetails) {
+
+	// Try to find an existing PCC Rule with ANY matching flow
+	var pccRule *models.PccRule
+	for _, rule := range smPolicy.PolicyDecision.PccRules {
+		for _, ef := range rule.FlowInfos {
+			for _, nf := range flowInfos {
+				if ef.FlowDescription == nf.FlowDescription {
+					pccRule = rule
+					break
+				}
+			}
+			if pccRule != nil {
+				break
+			}
+		}
+		if pccRule != nil {
+			break
+		}
+	}
+
+	if pccRule == nil {
+		logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for combined FlowInfos. Creating new PCC Rule.")
+
+		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
+		logger.PolicyAuthorizationlog.Infof("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
+
+		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
+		logger.PolicyAuthorizationlog.Infof("Created QosData ID [%s]", qosData.QosId, var5qi)
+
+		if var5qi <= 4 {
+			var finalUL, finalDL bool
+			for _, medSubComp := range medSubComps {
+				var ul, dl bool
+				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, &medSubComp)
+				finalUL = finalUL || ul
+				finalDL = finalDL || dl
+			}
+			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, finalUL, finalDL); problemDetails != nil {
+				return nil, problemDetails
+			}
+		}
+
+		for i := range flowInfos {
+			flowInfos[i].PackFiltId = util.GetPackFiltId(smPolicy.PackFiltIdGenarator)
+			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].PackFiltId] = pccRule.PccRuleId
+			smPolicy.PackFiltIdGenarator++
+		}
+		pccRule.FlowInfos = flowInfos
+
+		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
+		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
+		smPolicy.PccRuleIdGenarator++
+	} else {
+		// Merge new flows into the existing PCC Rule
+		for _, nf := range flowInfos {
+			found := false
+			for _, ef := range pccRule.FlowInfos {
+				if ef.FlowDescription == nf.FlowDescription {
+					found = true
+					break
+				}
+			}
+			if !found {
+				nf.PackFiltId = util.GetPackFiltId(smPolicy.PackFiltIdGenarator)
+				smPolicy.PackFiltMapToPccRuleId[nf.PackFiltId] = pccRule.PccRuleId
+				smPolicy.PackFiltIdGenarator++
+				pccRule.FlowInfos = append(pccRule.FlowInfos, nf)
+			}
+		}
 	}
 
 	smPolicy.PolicyDecision.PccRules[pccRule.PccRuleId] = pccRule
