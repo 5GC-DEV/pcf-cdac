@@ -7,7 +7,6 @@ package util
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/omec-project/openapi/models"
@@ -162,7 +161,7 @@ func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *m
 	return nil
 }
 
-/*func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
@@ -183,9 +182,9 @@ func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *m
 		}
 	}
 	return nil
-} */
+}
 
-func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flows []models.FlowInformation) *models.PccRule {
+/*func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flows []models.FlowInformation) *models.PccRule {
 	normalize := func(s string) string {
 		return strings.TrimSpace(strings.ToLower(s))
 	}
@@ -211,7 +210,7 @@ func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flows []models.F
 		}
 	}
 	return nil
-}
+} */
 
 func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.PccRule,
 	tcData *models.TrafficControlData, qosData *models.QosData, chgData *models.ChargingData,
