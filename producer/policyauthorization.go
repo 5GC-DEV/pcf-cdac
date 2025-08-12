@@ -687,6 +687,23 @@ func handleCombinedMediaSubComponents(
 
 	smPolicy.PolicyDecision.PccRules[pccRule.PccRuleId] = pccRule
 	logger.PolicyAuthorizationlog.Infof("PCC Rule ID [%s] stored successfully in PolicyDecision", pccRule.PccRuleId)
+	logger.PolicyAuthorizationlog.Infof("Final PCC Rule Snapshot for ID [%s]:", pccRule.PccRuleId)
+	logger.PolicyAuthorizationlog.Infof("  Precedence: %d", pccRule.Precedence)
+	logger.PolicyAuthorizationlog.Infof("  FlowInfos:")
+	for _, fi := range pccRule.FlowInfos {
+		logger.PolicyAuthorizationlog.Infof("    FlowDescription: %s, PackFiltId: %s", fi.FlowDescription, fi.PackFiltId)
+	}
+	logger.PolicyAuthorizationlog.Infof("  RefQosData:")
+	for _, qosRef := range pccRule.RefQosData {
+		qosData, ok := smPolicy.PolicyDecision.QosDecs[qosRef]
+		if ok {
+			logger.PolicyAuthorizationlog.Infof("    QosId: %s, 5QI: %d", qosData.QosId, qosData.Var5qi)
+		} else {
+			logger.PolicyAuthorizationlog.Warnf("    QosData reference [%s] not found", qosRef)
+		}
+	}
+	logger.PolicyAuthorizationlog.Infof("  RefTcData: %v", pccRule.RefTcData)
+	logger.PolicyAuthorizationlog.Infof("  RefChgData: %v", pccRule.RefChgData)
 	return pccRule, nil
 }
 
