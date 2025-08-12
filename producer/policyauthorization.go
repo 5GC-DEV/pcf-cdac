@@ -586,25 +586,30 @@ func handleCombinedMediaSubComponents(
 	var5qi int32,
 	flowInfos []models.FlowInformation,
 ) (*models.PccRule, *models.ProblemDetails) {
+	// Print all existing PCC Rule IDs before creating new ones
+	for id, rule := range smPolicy.PolicyDecision.PccRules {
+		logger.PolicyAuthorizationlog.Infof("Existing PCC Rule ID: [%s]", id)
 
-	// Try to find an existing PCC Rule with ANY matching flow
-	var pccRule *models.PccRule
-	for _, rule := range smPolicy.PolicyDecision.PccRules {
-		for _, ef := range rule.FlowInfos {
-			for _, nf := range flowInfos {
-				if ef.FlowDescription == nf.FlowDescription {
-					pccRule = rule
-					break
+		// Print FlowDescriptions so you can identify IMS vs Internet
+		for _, fi := range rule.FlowInfos {
+			logger.PolicyAuthorizationlog.Infof("  FlowDescription: %s", fi.FlowDescription)
+		}
+
+		// Print Qos IDs linked to this PCC Rule
+		if len(rule.RefQosData) > 0 {
+			for _, qosRef := range rule.RefQosData {
+				qosData, ok := smPolicy.PolicyDecision.QosDecs[qosRef]
+				if ok {
+					logger.PolicyAuthorizationlog.Infof("  QosData ID: [%s]", qosData.QosId)
+				} else {
+					logger.PolicyAuthorizationlog.Warnf("  QosData reference [%s] not found", qosRef)
 				}
 			}
-			if pccRule != nil {
-				break
-			}
-		}
-		if pccRule != nil {
-			break
 		}
 	}
+
+	// Try to find an existing PCC Rule
+	pccRule := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.PccRules, flowInfos)
 
 	if pccRule == nil {
 		logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for combined FlowInfos. Creating new PCC Rule.")
@@ -614,7 +619,7 @@ func handleCombinedMediaSubComponents(
 		logger.PolicyAuthorizationlog.Infof("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
 
 		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
-		logger.PolicyAuthorizationlog.Infof("Created QosData ID [%s]", qosData.QosId, var5qi)
+		logger.PolicyAuthorizationlog.Infof("Created QosData ID [%s] (5QI=%d)", qosData.QosId, var5qi)
 
 		if var5qi <= 4 {
 			var finalUL, finalDL bool
@@ -639,7 +644,26 @@ func handleCombinedMediaSubComponents(
 		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
+
 	} else {
+		// Found an existing PCC Rule
+		logger.PolicyAuthorizationlog.Infof("Found existing PCC Rule ID [%s]", pccRule.PccRuleId)
+
+		if len(pccRule.RefQosData) > 0 {
+			for _, qosRef := range pccRule.RefQosData {
+				qosData, ok := smPolicy.PolicyDecision.QosDecs[qosRef]
+				if ok {
+					logger.PolicyAuthorizationlog.Infof("Existing PCC Rule [%s] has QosData ID [%s]",
+						pccRule.PccRuleId, qosData.QosId)
+				} else {
+					logger.PolicyAuthorizationlog.Warnf("Existing PCC Rule [%s] has RefQosData [%s] but not found in QosDecs",
+						pccRule.PccRuleId, qosRef)
+				}
+			}
+		} else {
+			logger.PolicyAuthorizationlog.Infof("Existing PCC Rule [%s] has no QosData references", pccRule.PccRuleId)
+		}
+
 		// Merge new flows into the existing PCC Rule
 		for _, nf := range flowInfos {
 			found := false
