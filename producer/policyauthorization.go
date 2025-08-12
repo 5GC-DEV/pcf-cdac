@@ -640,11 +640,9 @@ func handleCombinedMediaSubComponents(
 			smPolicy.PackFiltIdGenarator++
 		}
 		pccRule.FlowInfos = flowInfos
-
 		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
-
 	} else {
 		// Found an existing PCC Rule
 		logger.PolicyAuthorizationlog.Infof("Found existing PCC Rule ID [%s]", pccRule.PccRuleId)
