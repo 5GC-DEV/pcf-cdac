@@ -294,10 +294,25 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				} else {
 					pccRule = tempPccRule
 				}
-				for _, medSubComp := range medSubCompsList {
+				/*for _, medSubComp := range medSubCompsList {
 					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
 					relatedPccRuleIds[key] = pccRule.PccRuleId
 					logger.PolicyAuthorizationlog.Infof("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
+				}*/
+				// Collect mappings for this media component
+				var mappings []string
+				for _, medSubComp := range medSubCompsList {
+					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
+					relatedPccRuleIds[key] = pccRule.PccRuleId
+					mappings = append(mappings, fmt.Sprintf("[%s -> %s]", key, pccRule.PccRuleId))
+				}
+				// Log once for this media component
+				if len(mappings) > 0 {
+					logger.PolicyAuthorizationlog.Infof(
+						"Mapped PCC Rule IDs for MediaCompN [%d]: %s",
+						medComp.MedCompN,
+						strings.Join(mappings, ", "),
+					)
 				}
 				updateSMpolicy = true
 				continue
