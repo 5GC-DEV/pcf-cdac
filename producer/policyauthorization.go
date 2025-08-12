@@ -621,7 +621,6 @@ func handleCombinedMediaSubComponents(
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
 		logger.PolicyAuthorizationlog.Infof("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
-
 		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
 		logger.PolicyAuthorizationlog.Infof("Created QosData ID [%s] (5QI=%d)", qosData.QosId, var5qi)
 
