@@ -7,6 +7,7 @@ package util
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/omec-project/openapi/models"
@@ -161,7 +162,7 @@ func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *m
 	return nil
 }
 
-func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+/*func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
@@ -179,6 +180,34 @@ func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []mode
 		}
 		if found {
 			return pccRule
+		}
+	}
+	return nil
+} */
+
+func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flows []models.FlowInformation) *models.PccRule {
+	normalize := func(s string) string {
+		return strings.TrimSpace(strings.ToLower(s))
+	}
+
+	for _, rule := range pccRules {
+		match := true
+		for _, nf := range flows {
+			nfDesc := normalize(nf.FlowDescription)
+			found := false
+			for _, ef := range rule.FlowInfos {
+				if normalize(ef.FlowDescription) == nfDesc {
+					found = true
+					break
+				}
+			}
+			if !found {
+				match = false
+				break
+			}
+		}
+		if match {
+			return rule
 		}
 	}
 	return nil

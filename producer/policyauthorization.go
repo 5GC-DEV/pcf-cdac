@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -613,7 +614,10 @@ func handleCombinedMediaSubComponents(
 
 	if pccRule == nil {
 		logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for combined FlowInfos. Creating new PCC Rule.")
-
+		maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.PccRules)
+		if smPolicy.PccRuleIdGenarator <= maxExisting {
+			smPolicy.PccRuleIdGenarator = maxExisting + 1
+		}
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
 		logger.PolicyAuthorizationlog.Infof("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
@@ -1599,6 +1603,16 @@ func getMaxPrecedence(pccRules map[string]*models.PccRule) (maxVaule int32) {
 		}
 	}
 	return
+}
+
+func getMaxPccRuleIdNum(pccRules map[string]*models.PccRule) int32 {
+	var maxID int32 = 0
+	for id := range pccRules {
+		if n, err := strconv.Atoi(id); err == nil && int32(n) > maxID {
+			maxID = int32(n)
+		}
+	}
+	return maxID
 }
 
 /*
