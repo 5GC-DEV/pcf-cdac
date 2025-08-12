@@ -316,6 +316,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				return nil, "", &problemDetail
 			}
 			// Find pccRule by AfAppId, otherwise create a new pcc rule
+			logger.PolicyAuthorizationlog.Infof("AfAppId", appID)
 			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
 			if pccRule == nil {
 				logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for AppID: %s, creating a new one", appID)

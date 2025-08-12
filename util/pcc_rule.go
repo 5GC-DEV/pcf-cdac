@@ -161,7 +161,7 @@ func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *m
 	return nil
 }
 
-func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+/*func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
@@ -182,7 +182,7 @@ func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []mode
 		}
 	}
 	return nil
-}
+} */
 
 /*func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flows []models.FlowInformation) *models.PccRule {
 	normalize := func(s string) string {
@@ -211,6 +211,29 @@ func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []mode
 	}
 	return nil
 } */
+
+func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+	for _, pccRule := range pccRules {
+		match := true
+		for _, reqFlow := range flowInfos {
+			found := false
+			for _, existingFlow := range pccRule.FlowInfos {
+				if existingFlow.FlowDescription == reqFlow.FlowDescription {
+					found = true
+					break
+				}
+			}
+			if !found {
+				match = false
+				break
+			}
+		}
+		if match {
+			return pccRule
+		}
+	}
+	return nil
+}
 
 func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.PccRule,
 	tcData *models.TrafficControlData, qosData *models.QosData, chgData *models.ChargingData,
