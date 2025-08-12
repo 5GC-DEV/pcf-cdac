@@ -324,13 +324,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				// Set QoS Data
 				// TODO: use real ARP
 				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
-				logger.PolicyAuthorizationlog.Debugf("Created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.QosId, qosData.Var5qi, qosData.Arp.PriorityLevel)
+				logger.PolicyAuthorizationlog.Infof("Created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.QosId, qosData.Var5qi, qosData.Arp.PriorityLevel)
 
 				if var5qi <= 4 {
 					// update QoS Data according to request BitRate
 					var ul, dl bool
 					qosData, ul, dl = updateQosInMedComp(qosData, &medComp)
-					logger.PolicyAuthorizationlog.Debugf("Updated QoS Bitrate: QosID: %s, UL changed: %v, DL changed: %v", qosData.QosId, ul, dl)
+					logger.PolicyAuthorizationlog.Infof("Updated QoS Bitrate: QosID: %s, UL changed: %v, DL changed: %v", qosData.QosId, ul, dl)
 
 					if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
 						logger.PolicyAuthorizationlog.Errorf("Failed to modify remaining bitrate: %v", problemDetails)
@@ -338,23 +338,23 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					}
 				}
 				util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, nil, &qosData, nil, nil)
-				logger.PolicyAuthorizationlog.Debugf("Set PCC Rule Related Data for RuleID: %s", pccRule.PccRuleId)
+				logger.PolicyAuthorizationlog.Infof("Set PCC Rule Related Data for RuleID: %s", pccRule.PccRuleId)
 
 				smPolicy.PccRuleIdGenarator++
 				maxPrecedence++
 				logger.PolicyAuthorizationlog.Infof("New PCC Rule created: RuleID: %s, AppID: %s, QosID: %s", pccRule.PccRuleId, appID, qosData.QosId)
 			} else {
-				logger.PolicyAuthorizationlog.Debugf("Found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.PccRuleId)
+				logger.PolicyAuthorizationlog.Infof("Found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.PccRuleId)
 
 				// update pccRule's QoS
 				for _, qosID := range pccRule.RefQosData {
 					qosData := *smPolicy.PolicyDecision.QosDecs[qosID]
-					logger.PolicyAuthorizationlog.Debugf("Evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.QosId, qosData.Var5qi)
+					logger.PolicyAuthorizationlog.Infof("Evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.QosId, qosData.Var5qi)
 
 					if qosData.Var5qi == var5qi && qosData.Var5qi <= 4 {
 						var ul, dl bool
 						qosData, ul, dl = updateQosInMedComp(*smPolicy.PolicyDecision.QosDecs[qosID], &medComp)
-						logger.PolicyAuthorizationlog.Debugf("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.QosId, ul, dl)
+						logger.PolicyAuthorizationlog.Infof("QoS Update check passed: QosID: %s, UL changed: %v, DL changed: %v", qosData.QosId, ul, dl)
 
 						if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
 							logger.PolicyAuthorizationlog.Errorf("Failed to modify remaining bitrate during QoS update: %v", problemDetails)
@@ -646,6 +646,7 @@ func handleCombinedMediaSubComponents(
 		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
+		logger.PolicyAuthorizationlog.Infof("PCC Rule ID [%s]", pccRule.PccRuleId)
 	} else {
 		// Found an existing PCC Rule
 		logger.PolicyAuthorizationlog.Infof("Found existing PCC Rule ID [%s]", pccRule.PccRuleId)
@@ -684,6 +685,7 @@ func handleCombinedMediaSubComponents(
 	}
 
 	smPolicy.PolicyDecision.PccRules[pccRule.PccRuleId] = pccRule
+	logger.PolicyAuthorizationlog.Infof("PCC Rule ID [%s] stored successfully in PolicyDecision", pccRule.PccRuleId)
 	return pccRule, nil
 }
 
