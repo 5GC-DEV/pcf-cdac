@@ -381,7 +381,7 @@ func DecreaseRamainBitRateToZero(remainBitRate *float64) string {
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+/*func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}
@@ -390,6 +390,40 @@ func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.Netwo
 			return amPolicy
 		}
 	}
+	return nil
+} */
+
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+	if ue == nil || plmnId == nil {
+		logger.AMpolicylog.Warnf("[FindAMPolicy] UE or PLMN is nil (ue=%v, plmnId=%v)", ue, plmnId)
+		return nil
+	}
+
+	logger.AMpolicylog.Infof("[FindAMPolicy] Searching for anType=%+v, plmnId=%+v in UE[%s]",
+		anType, plmnId, ue.Supi)
+
+	for id, amPolicy := range ue.AMPolicyData {
+		if amPolicy == nil {
+			logger.AMpolicylog.Warnf("[FindAMPolicy] amPolicy[%s] is nil", id)
+			continue
+		}
+
+		if amPolicy.ServingPlmn == nil {
+			logger.AMpolicylog.Warnf("[FindAMPolicy] amPolicy[%s]: ServingPlmn is nil! AccessType=%+v",
+				id, amPolicy.AccessType)
+			continue // avoid panic
+		}
+
+		logger.AMpolicylog.Infof("[FindAMPolicy] amPolicy[%s]: AccessType=%+v, ServingPlmn=%+v",
+			id, amPolicy.AccessType, amPolicy.ServingPlmn)
+
+		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+			logger.AMpolicylog.Infof("[FindAMPolicy] Match found in amPolicy[%s]", id)
+			return amPolicy
+		}
+	}
+
+	logger.AMpolicylog.Infof("[FindAMPolicy] No match found for UE[%s]", ue.Supi)
 	return nil
 }
 

@@ -255,8 +255,10 @@ func PostPoliciesProcedure(polAssoId string,
 		}()
 		if amPolicy == nil {
 			amPolicy = ue.NewUeAMPolicyData(assolId, policyAssociationRequest)
+			logger.AMpolicylog.Infof("[UE %s] After creation1: ServingPlmn=%+v", ue.Supi, amPolicy.ServingPlmn)
 		}
 		amPolicy.AmPolicyData = &amData
+		logger.AMpolicylog.Infof("[UE %s] After creation: ServingPlmn=%+v", ue.Supi, amPolicy.ServingPlmn)
 	}
 
 	// TODO: according to PCF Policy to determine ServAreaRes, Rfsp, SuppFeat
