@@ -26,7 +26,7 @@ import (
 )
 
 // HTTPDeleteAppSession - Deletes an existing Individual Application Session Context
-func HTTPDeleteAppSession(c *gin.Context) {
+/*func HTTPDeleteAppSession(c *gin.Context) {
 	var eventsSubscReqData *models.EventsSubscReqData
 
 	requestBody, err := c.GetRawData()
@@ -73,6 +73,74 @@ func HTTPDeleteAppSession(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else {
+		c.Data(rsp.Status, "application/json", responseBody)
+	}
+} */
+
+func HTTPDeleteAppSession(c *gin.Context) {
+	var eventsSubscReqData *models.EventsSubscReqData
+
+	logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Incoming request: %s %s", c.Request.Method, c.Request.URL.Path)
+
+	// Dump headers for debugging
+	for k, v := range c.Request.Header {
+		logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Header: %s=%v", k, v)
+	}
+
+	requestBody, err := c.GetRawData()
+	if err != nil {
+		problemDetail := models.ProblemDetails{
+			Title:  "System failure",
+			Status: http.StatusInternalServerError,
+			Detail: err.Error(),
+			Cause:  "SYSTEM_FAILURE",
+		}
+		logger.PolicyAuthorizationlog.Errorf("[HTTPDeleteAppSession] Failed to read request body: %+v", err)
+		c.JSON(http.StatusInternalServerError, problemDetail)
+		return
+	}
+	logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Raw request body: %s", string(requestBody))
+
+	// EventsSubscReqData is Optional
+	if len(requestBody) > 0 {
+		err = openapi.Deserialize(&eventsSubscReqData, requestBody, "application/json")
+		if err != nil {
+			problemDetail := "[Request Body] " + err.Error()
+			rsp := models.ProblemDetails{
+				Title:  "Malformed request syntax",
+				Status: http.StatusBadRequest,
+				Detail: problemDetail,
+			}
+			logger.PolicyAuthorizationlog.Errorf("[HTTPDeleteAppSession] Failed to deserialize body: %v", err)
+			c.JSON(http.StatusBadRequest, rsp)
+			return
+		}
+		logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Parsed EventsSubscReqData: %+v", eventsSubscReqData)
+	} else {
+		logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] No request body provided (optional).")
+	}
+
+	appSessionId, _ := c.Params.Get("appSessionId")
+	logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Extracted appSessionId: %s", appSessionId)
+
+	req := httpwrapper.NewRequest(c.Request, eventsSubscReqData)
+	req.Params["appSessionId"] = appSessionId
+
+	logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Calling producer.HandleDeleteAppSessionContext with appSessionId=%s", appSessionId)
+	rsp := producer.HandleDeleteAppSessionContext(req)
+	logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Response from producer: Status=%d, Body=%+v", rsp.Status, rsp.Body)
+
+	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
+	if err != nil {
+		logger.PolicyAuthorizationlog.Errorf("[HTTPDeleteAppSession] Failed to serialize response: %v", err)
+		problemDetails := models.ProblemDetails{
+			Status: http.StatusInternalServerError,
+			Cause:  "SYSTEM_FAILURE",
+			Detail: err.Error(),
+		}
+		c.JSON(http.StatusInternalServerError, problemDetails)
+	} else {
+		logger.PolicyAuthorizationlog.Infof("[HTTPDeleteAppSession] Sending response: %d %s", rsp.Status, string(responseBody))
 		c.Data(rsp.Status, "application/json", responseBody)
 	}
 }
