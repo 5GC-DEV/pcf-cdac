@@ -381,7 +381,7 @@ func DecreaseRamainBitRateToZero(remainBitRate *float64) string {
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+/*func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}
@@ -390,6 +390,34 @@ func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.Netwo
 			return amPolicy
 		}
 	}
+	return nil
+} */
+
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+	if ue == nil {
+		logger.CtxLog.Error("FindAMPolicy: UeContext is nil")
+		return nil
+	}
+	if plmnId == nil {
+		logger.CtxLog.Warn("FindAMPolicy: plmnId is nil")
+		return nil
+	}
+	if ue.AMPolicyData == nil {
+		logger.CtxLog.Warnf("FindAMPolicy: AMPolicyData is nil for UE[%s]", ue.Supi)
+		return nil
+	}
+
+	for _, amPolicy := range ue.AMPolicyData {
+		if amPolicy == nil {
+			continue
+		}
+		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+			return amPolicy
+		}
+	}
+
+	logger.CtxLog.Infof("FindAMPolicy: no matching AM policy found for UE[%s], AccessType[%v], PLMN[%+v]",
+		ue.Supi, anType, plmnId)
 	return nil
 }
 
