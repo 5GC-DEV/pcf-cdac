@@ -411,7 +411,12 @@ func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.Netwo
 		if amPolicy == nil {
 			continue
 		}
-		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+		/*if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+			return amPolicy
+		}*/
+		if amPolicy.AccessType == anType &&
+			amPolicy.ServingPlmn != nil &&
+			reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
 			return amPolicy
 		}
 	}
