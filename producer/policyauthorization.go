@@ -398,46 +398,80 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	// Event Subscription
 	eventSubs := make(map[models.AfEvent]models.AfNotifMethod)
 	if ascReqData.EvSubsc != nil {
+		logger.PolicyAuthorizationlog.Infof("Processing AF Event Subscriptions: total [%d] events", len(ascReqData.EvSubsc.Events))
+
 		for _, subs := range ascReqData.EvSubsc.Events {
+			logger.PolicyAuthorizationlog.Infof("Handling AF Event [%v] with initial NotifMethod [%v]", subs.Event, subs.NotifMethod)
+
 			if subs.NotifMethod == "" {
 				// default value "EVENT_DETECTION"
 				subs.NotifMethod = models.AfNotifMethod_EVENT_DETECTION
+				logger.PolicyAuthorizationlog.Infof("AF Event [%v] missing NotifMethod, set default [%v]",
+					subs.Event, subs.NotifMethod)
 			}
+
 			eventSubs[subs.Event] = subs.NotifMethod
+			logger.PolicyAuthorizationlog.Infof("Subscribed AF Event [%v] with NotifMethod [%v]", subs.Event, subs.NotifMethod)
+
 			var trig models.PolicyControlRequestTrigger
 			switch subs.Event {
 			case models.AfEvent_ACCESS_TYPE_CHANGE:
 				trig = models.PolicyControlRequestTrigger_AC_TY_CH
+				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
+
 			// case models.AfEvent_FAILED_RESOURCES_ALLOCATION:
-			// 	// Subscription to Service Data Flow Deactivation
 			// 	trig = models.PolicyControlRequestTrigger_RES_RELEASE
+
 			case models.AfEvent_PLMN_CHG:
 				trig = models.PolicyControlRequestTrigger_PLMN_CH
+				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
+
 			case models.AfEvent_QOS_NOTIF:
+				logger.PolicyAuthorizationlog.Infof("Handling QoS Notification subscription for AF Event [%v]", subs.Event)
+
 				// Subscriptions to Service Data Flow QoS notification control
 				for _, pccRuleID := range relatedPccRuleIds {
 					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
+					logger.PolicyAuthorizationlog.Infof("Updating QoS Data for PCC Rule [%s]", pccRuleID)
+
 					for _, qosID := range pccRule.RefQosData {
-						qosData := smPolicy.PolicyDecision.QosDecs[qosID]
-						qosData.Qnc = true
-						smPolicy.PolicyDecision.QosDecs[qosID] = qosData
+						if qosData, ok := smPolicy.PolicyDecision.QosDecs[qosID]; ok {
+							logger.PolicyAuthorizationlog.Infof("  QoS Data [%s] before update: Qnc=%v", qosID, qosData.Qnc)
+							qosData.Qnc = true
+							smPolicy.PolicyDecision.QosDecs[qosID] = qosData
+							logger.PolicyAuthorizationlog.Infof("  QoS Data [%s] updated: Qnc=%v", qosID, qosData.Qnc)
+						} else {
+							logger.PolicyAuthorizationlog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
+						}
 					}
 				}
 				trig = models.PolicyControlRequestTrigger_QOS_NOTIF
+				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
+
 			case models.AfEvent_SUCCESSFUL_RESOURCES_ALLOCATION:
-				// Subscription to resources allocation outcome
 				trig = models.PolicyControlRequestTrigger_SUCC_RES_ALLO
+				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
+
 			case models.AfEvent_USAGE_REPORT:
 				trig = models.PolicyControlRequestTrigger_US_RE
+				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
+
 			default:
-				logger.PolicyAuthorizationlog.Warnln("AF Event is unknown")
+				logger.PolicyAuthorizationlog.Warnf("AF Event [%v] is unknown, skipping", subs.Event)
 				continue
 			}
+
+			// Check and append trigger
 			if !util.CheckPolicyControlReqTrig(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig) {
+				logger.PolicyAuthorizationlog.Infof("Adding new Policy Control Request Trigger [%v]", trig)
 				smPolicy.PolicyDecision.PolicyCtrlReqTriggers = append(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig)
 				updateSMpolicy = true
+			} else {
+				logger.PolicyAuthorizationlog.Infof("Trigger [%v] already exists, skipping add", trig)
 			}
 		}
+	} else {
+		logger.PolicyAuthorizationlog.Infof("No AF Event Subscriptions present in request")
 	}
 
 	// Initial provisioning of sponsored connectivity information
@@ -479,6 +513,9 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		AppSessionContext: appSessCtx,
 		SmPolicyData:      smPolicy,
 	}
+	logger.PolicyAuthorizationlog.Infof("Created/updated AppSession with ID [%s]", appSessID)
+	logger.PolicyAuthorizationlog.Infof("AppSession Context: %+v", appSessCtx)
+	logger.PolicyAuthorizationlog.Infof("SM Policy associated with AppSession [%s]: %+v", appSessID, smPolicy)
 	if len(relatedPccRuleIds) > 0 {
 		data.RelatedPccRuleIds = relatedPccRuleIds
 		data.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
