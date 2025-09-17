@@ -8,6 +8,7 @@ package producer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -68,6 +69,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 ) (*models.PccRule, *models.ProblemDetails) {
 	logger.PolicyAuthorizationlog.Debugf("Handling MediaSubComponent: FNum [%d], FStatus [%s]", medSubComp.FNum, medSubComp.FStatus)
 	var flowInfos []models.FlowInformation
+	var arp int32 = 1
 	if tempFlowInfos, err := getFlowInfos(medSubComp); err != nil {
 		logger.PolicyAuthorizationlog.Errorf("Failed to get FlowInfos for FNum [%d]: %v", medSubComp.FNum, err)
 		problemDetail := util.GetProblemDetail(err.Error(), util.REQUESTED_SERVICE_NOT_AUTHORIZED)
@@ -86,7 +88,7 @@ func handleMediaSubComponent(smPolicy *pcf_context.UeSmPolicyData, medComp *mode
 		logger.PolicyAuthorizationlog.Debugf("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
 
 		// Create QoS Data
-		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
+		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
 		logger.PolicyAuthorizationlog.Debugf("Created QosData ID [%s] with Var5qi [%d]", qosData.QosId, var5qi)
 
 		if var5qi <= 4 {
@@ -242,6 +244,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	logger.PolicyAuthorizationlog.Infof("Traffic Routing Supported: %t", traffRoutSupp)
 	if ascReqData.MedComponents != nil {
 		// Handle Pcc rules
+		var arp int32 = 1
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
 		for _, medComp := range ascReqData.MedComponents {
 			logger.PolicyAuthorizationlog.Infof("Processing %d MediaComponents", len(ascReqData.MedComponents))
@@ -324,7 +327,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 				// Set QoS Data
 				// TODO: use real ARP
-				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
+				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
 				logger.PolicyAuthorizationlog.Infof("Created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.QosId, qosData.Var5qi, qosData.Arp.PriorityLevel)
 
 				if var5qi <= 4 {
@@ -479,6 +482,10 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	if len(relatedPccRuleIds) > 0 {
 		data.RelatedPccRuleIds = relatedPccRuleIds
 		data.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
+		relatedJSON, _ := json.MarshalIndent(relatedPccRuleIds, "", "  ")
+		logger.PolicyAuthorizationlog.Debugf("RelatedPccRuleIds (pretty): %s", string(relatedJSON))
+		reversedJSON, _ := json.MarshalIndent(data.PccRuleIdMapToCompId, "", "  ")
+		logger.PolicyAuthorizationlog.Debugf("PccRuleIdMapToCompId (pretty): %s", string(reversedJSON))
 	}
 	appSessCtx.EvsNotif = &models.EventsNotification{}
 	// Set Event Subsciption related Data
@@ -524,6 +531,12 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		notification := models.SmPolicyNotification{
 			ResourceUri:      util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID),
 			SmPolicyDecision: smPolicy.PolicyDecision,
+		}
+		decisionJSON, err := json.MarshalIndent(smPolicy.PolicyDecision, "", "  ")
+		if err != nil {
+			logger.PolicyAuthorizationlog.Errorf("Failed to marshal SmPolicyDecision: %+v", err)
+		} else {
+			logger.PolicyAuthorizationlog.Infof("SmPolicyDecision data: %s", string(decisionJSON))
 		}
 		logger.PolicyAuthorizationlog.Infof("Sending SM Policy Update Notification to: %s", smPolicy.PolicyContext.NotificationUri)
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
@@ -704,6 +717,12 @@ func handleCombinedMediaSubComponents(
 	}
 	logger.PolicyAuthorizationlog.Infof("  RefTcData: %v", pccRule.RefTcData)
 	logger.PolicyAuthorizationlog.Infof("  RefChgData: %v", pccRule.RefChgData)
+	pccRuleJSON, err := json.MarshalIndent(pccRule, "", "  ")
+	if err != nil {
+		logger.PolicyAuthorizationlog.Errorf("Failed to marshal PCC Rule [%s]: %+v", pccRule.PccRuleId, err)
+	} else {
+		logger.PolicyAuthorizationlog.Infof("PCC Rule [%s] Full Snapshot:\n%s", pccRule.PccRuleId, string(pccRuleJSON))
+	}
 	return pccRule, nil
 }
 
