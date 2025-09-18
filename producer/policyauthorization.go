@@ -473,7 +473,30 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	} else {
 		logger.PolicyAuthorizationlog.Infof("No AF Event Subscriptions present in request")
 	}
+	filteredDecision := &models.SmPolicyDecision{
+		PccRules:      make(map[string]*models.PccRule),
+		QosDecs:       make(map[string]*models.QosData),
+		TraffContDecs: make(map[string]*models.TrafficControlData),
+	}
+	for _, pccRuleID := range relatedPccRuleIds {
+		if pccRule, ok := smPolicy.PolicyDecision.PccRules[pccRuleID]; ok {
+			filteredDecision.PccRules[pccRuleID] = pccRule
 
+			// include QoS data
+			for _, qosID := range pccRule.RefQosData {
+				if qos, ok := smPolicy.PolicyDecision.QosDecs[qosID]; ok {
+					filteredDecision.QosDecs[qosID] = qos
+				}
+			}
+
+			// include Traffic Control data
+			for _, tcID := range pccRule.RefTcData {
+				if tc, ok := smPolicy.PolicyDecision.TraffContDecs[tcID]; ok {
+					filteredDecision.TraffContDecs[tcID] = tc
+				}
+			}
+		}
+	}
 	// Initial provisioning of sponsored connectivity information
 	if ascReqData.AspId != "" && ascReqData.SponId != "" {
 		// SponsoredConnectivity = 2 in 29514 &  SponsoredConnectivity support = 12 in 29512
@@ -567,9 +590,9 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
 		notification := models.SmPolicyNotification{
 			ResourceUri:      util.GetResourceUri(models.ServiceName_NPCF_SMPOLICYCONTROL, smPolicyID),
-			SmPolicyDecision: smPolicy.PolicyDecision,
+			SmPolicyDecision: filteredDecision,
 		}
-		decisionJSON, err := json.MarshalIndent(smPolicy.PolicyDecision, "", "  ")
+		decisionJSON, err := json.MarshalIndent(filteredDecision, "", "  ")
 		if err != nil {
 			logger.PolicyAuthorizationlog.Errorf("Failed to marshal SmPolicyDecision: %+v", err)
 		} else {
