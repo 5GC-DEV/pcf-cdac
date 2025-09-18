@@ -190,6 +190,10 @@ func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []mode
 		if found {
 			logger.PolicyAuthorizationlog.Infof("Match found — returning PCC Rule ID=%s", pccRule.PccRuleId)
 			return pccRule
+		} else {
+			// Remove the unmatched PCC rule
+			delete(pccRules, pccRule.PccRuleId)
+			logger.PolicyAuthorizationlog.Infof("PCC Rule ID=%s removed since it did not match incoming FlowInfos", pccRule.PccRuleId)
 		}
 	}
 	logger.PolicyAuthorizationlog.Infof("No matching PCC Rule found for given FlowInfos")
