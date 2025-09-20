@@ -523,11 +523,18 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	if len(relatedPccRuleIds) > 0 {
 		data.RelatedPccRuleIds = relatedPccRuleIds
 		data.PccRuleIdMapToCompId = reverseStringMap(relatedPccRuleIds)
-		relatedJSON, _ := json.MarshalIndent(relatedPccRuleIds, "", "  ")
-		logger.PolicyAuthorizationlog.Debugf("RelatedPccRuleIds (pretty): %s", string(relatedJSON))
-		reversedJSON, _ := json.MarshalIndent(data.PccRuleIdMapToCompId, "", "  ")
-		logger.PolicyAuthorizationlog.Debugf("PccRuleIdMapToCompId (pretty): %s", string(reversedJSON))
+		if relatedJSON, err := json.MarshalIndent(relatedPccRuleIds, "", "  "); err != nil {
+			logger.PolicyAuthorizationlog.Errorf("Failed to marshal RelatedPccRuleIds: %v", err)
+		} else {
+			logger.PolicyAuthorizationlog.Debugf("RelatedPccRuleIds (pretty): %s", string(relatedJSON))
+		}
+		if reversedJSON, err := json.MarshalIndent(data.PccRuleIdMapToCompId, "", "  "); err != nil {
+			logger.PolicyAuthorizationlog.Errorf("Failed to marshal PccRuleIdMapToCompId: %v", err)
+		} else {
+			logger.PolicyAuthorizationlog.Debugf("PccRuleIdMapToCompId (pretty): %s", string(reversedJSON))
+		}
 	}
+
 	appSessCtx.EvsNotif = &models.EventsNotification{}
 	// Set Event Subsciption related Data
 	if len(eventSubs) > 0 {
