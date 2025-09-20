@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/5GC-DEV/config5g-cdac v0.2.1
+	github.com/5GC-DEV/event v0.0.0-20250920143456-3d7f9c51c82a
 	github.com/antihax/optional v1.0.0
 	github.com/cydev/zero v0.0.0-20160322155811-4a4535dd56e7
 	github.com/gin-contrib/cors v1.7.5
@@ -14,7 +15,6 @@ require (
 	github.com/omec-project/util v1.3.2
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tim-ywliu/event v0.1.0
 	github.com/urfave/cli/v3 v3.3.8
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v2 v2.4.0
