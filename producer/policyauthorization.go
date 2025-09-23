@@ -182,6 +182,7 @@ func HandlePostAppSessionsContext(request *httpwrapper.Request) *httpwrapper.Res
 	return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
 }
 
+// postAppSessCtxProcedure handles the processing of an Application Session Context (ASC) request.
 func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppSessionContext,
 	string, *models.ProblemDetails,
 ) {
@@ -621,21 +622,28 @@ func handleCombinedMediaSubComponents(
 		}
 	}
 
-	// Try to find an existing PCC Rule
+	// Step 1: Try to find an existing PCC Rule that matches the given FlowInfos
 	pccRule := util.GetPccRuleByFlowInfos(smPolicy.PolicyDecision.PccRules, flowInfos)
 
+	// ----------------------------------------------------------------
+	// Step 2: If no existing PCC Rule found, create a new one
+	// ----------------------------------------------------------------
 	if pccRule == nil {
 		logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for combined FlowInfos. Creating new PCC Rule.")
+		// Ensure PCC Rule ID generator is ahead of any existing PCC Rule ID
 		maxExisting := getMaxPccRuleIdNum(smPolicy.PolicyDecision.PccRules)
 		if smPolicy.PccRuleIdGenarator <= maxExisting {
 			smPolicy.PccRuleIdGenarator = maxExisting + 1
 		}
+		// Determine max precedence among existing PCC Rules
 		maxPrecedence := getMaxPrecedence(smPolicy.PolicyDecision.PccRules)
+		// Create new PCC Rule (TS 29.214: QoS and PCC Rule handling)
 		pccRule = util.CreatePccRule(smPolicy.PccRuleIdGenarator, maxPrecedence+1, nil, "")
 		logger.PolicyAuthorizationlog.Infof("Created new PCC Rule ID [%s]", pccRule.PccRuleId)
 		qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, 8)
 		logger.PolicyAuthorizationlog.Infof("Created QosData ID [%s] (5QI=%d)", qosData.QosId, var5qi)
 
+		// If var5qi <= 4 (GBR flows), update QoS according to MediaSubComponents
 		if var5qi <= 4 {
 			var finalUL, finalDL bool
 			for _, medSubComp := range medSubComps {
@@ -649,6 +657,7 @@ func handleCombinedMediaSubComponents(
 			}
 		}
 
+		// Assign Packet Filter IDs to FlowInfos and map them to PCC Rule
 		for i := range flowInfos {
 			flowInfos[i].PackFiltId = util.GetPackFiltId(smPolicy.PackFiltIdGenarator)
 			smPolicy.PackFiltMapToPccRuleId[flowInfos[i].PackFiltId] = pccRule.PccRuleId
@@ -660,7 +669,9 @@ func handleCombinedMediaSubComponents(
 		smPolicy.PccRuleIdGenarator++
 		logger.PolicyAuthorizationlog.Infof("PCC Rule ID [%s]", pccRule.PccRuleId)
 	} else {
-		// Found an existing PCC Rule
+		// ----------------------------------------------------------------
+		// Step 3 : Existing PCC Rule found, merge new flows and update if needed
+		// ----------------------------------------------------------------
 		logger.PolicyAuthorizationlog.Infof("Found existing PCC Rule ID [%s]", pccRule.PccRuleId)
 
 		if len(pccRule.RefQosData) > 0 {
@@ -678,7 +689,7 @@ func handleCombinedMediaSubComponents(
 			logger.PolicyAuthorizationlog.Infof("Existing PCC Rule [%s] has no QosData references", pccRule.PccRuleId)
 		}
 
-		// Merge new flows into the existing PCC Rule
+		// Merge new flows (FlowInfos) into the existing PCC Rule if not already present
 		for _, nf := range flowInfos {
 			found := false
 			for _, ef := range pccRule.FlowInfos {
