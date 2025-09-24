@@ -162,37 +162,37 @@ func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *m
 }
 
 func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
-	logger.PolicyAuthorizationlog.Infof("Starting GetPccRuleByFlowInfos with %d PCC rules and %d incoming FlowInfos", len(pccRules), len(flowInfos))
+	logger.PolicyAuthorizationlog.Debugf("Starting GetPccRuleByFlowInfos with %d PCC rules and %d incoming FlowInfos", len(pccRules), len(flowInfos))
 	found := false
 	set := make(map[string]models.FlowInformation)
 
 	for _, flowInfo := range flowInfos {
-		logger.PolicyAuthorizationlog.Infof("Adding incoming flowInfo to set: FlowDescription=%s", flowInfo.FlowDescription)
+		logger.PolicyAuthorizationlog.Debugf("Adding incoming flowInfo to set: FlowDescription=%s", flowInfo.FlowDescription)
 		set[flowInfo.FlowDescription] = flowInfo
 	}
 
 	for _, pccRule := range pccRules {
-		logger.PolicyAuthorizationlog.Infof("Checking PCC Rule ID=%s with %d FlowInfos", pccRule.PccRuleId, len(pccRule.FlowInfos))
+		logger.PolicyAuthorizationlog.Debugf("Checking PCC Rule ID=%s with %d FlowInfos", pccRule.PccRuleId, len(pccRule.FlowInfos))
 		found = true
 		for _, flowInfo := range pccRule.FlowInfos {
 			if _, exists := set[flowInfo.FlowDescription]; !exists {
-				logger.PolicyAuthorizationlog.Infof(
+				logger.PolicyAuthorizationlog.Debugf(
 					"FlowDescription=%s from PCC Rule ID=%s NOT found in incoming set — skipping this rule",
 					flowInfo.FlowDescription, pccRule.PccRuleId)
 				found = false
 				break
 			} else {
-				logger.PolicyAuthorizationlog.Infof(
+				logger.PolicyAuthorizationlog.Debugf(
 					"FlowDescription=%s from PCC Rule ID=%s matched in incoming set",
 					flowInfo.FlowDescription, pccRule.PccRuleId)
 			}
 		}
 		if found {
-			logger.PolicyAuthorizationlog.Infof("Match found — returning PCC Rule ID=%s", pccRule.PccRuleId)
+			logger.PolicyAuthorizationlog.Debugf("Match found — returning PCC Rule ID=%s", pccRule.PccRuleId)
 			return pccRule
 		}
 	}
-	logger.PolicyAuthorizationlog.Infof("No matching PCC Rule found for given FlowInfos")
+	logger.PolicyAuthorizationlog.Debugf("No matching PCC Rule found for given FlowInfos")
 	return nil
 }
 

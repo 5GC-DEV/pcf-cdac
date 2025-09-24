@@ -282,18 +282,18 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				for _, medSubComp := range medSubCompsList {
 					key := fmt.Sprintf("%d-%d", medComp.MedCompN, medSubComp.FNum)
 					relatedPccRuleIds[key] = pccRule.PccRuleId
-					logger.PolicyAuthorizationlog.Infof("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
+					logger.PolicyAuthorizationlog.Debugf("Mapped PCC Rule ID [%s] to MediaSubComp Key [%s]", pccRule.PccRuleId, key)
 				}
 				updateSMpolicy = true
 				continue
 			} else if medComp.AfAppId != "" {
 				appID = medComp.AfAppId
 				routeReq = medComp.AfRoutReq
-				logger.PolicyAuthorizationlog.Infof("Using AF App ID [%s] and RouteReq [%v] from Media Component [%d]", appID, routeReq, medComp.MedCompN)
+				logger.PolicyAuthorizationlog.Debugf("Using AF App ID [%s] and RouteReq [%v] from Media Component [%d]", appID, routeReq, medComp.MedCompN)
 			} else if ascReqData.AfAppId != "" {
 				appID = ascReqData.AfAppId
 				routeReq = ascReqData.AfRoutReq
-				logger.PolicyAuthorizationlog.Infof("Using AF App ID [%s] and RouteReq [%v] from AppSessionContext", appID, routeReq)
+				logger.PolicyAuthorizationlog.Debugf("Using AF App ID [%s] and RouteReq [%v] from AppSessionContext", appID, routeReq)
 			} else {
 				logger.PolicyAuthorizationlog.Warnf("Media Component [%d] lacks both sub-components and AfAppId", medComp.MedCompN)
 				problemDetail := util.GetProblemDetail("Media Component needs flows of subComp or afAppId",
@@ -301,7 +301,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				return nil, "", &problemDetail
 			}
 			// Find pccRule by AfAppId, otherwise create a new pcc rule
-			logger.PolicyAuthorizationlog.Infof("AfAppId", appID)
+			logger.PolicyAuthorizationlog.Debugf("AfAppId", appID)
 			pccRule = util.GetPccRuleByAfAppId(smPolicy.PolicyDecision.PccRules, appID)
 			if pccRule == nil {
 				logger.PolicyAuthorizationlog.Infof("No existing PCC Rule found for AppID: %s, creating a new one", appID)
@@ -310,13 +310,13 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 				// Set QoS Data
 				// TODO: use real ARP
 				qosData := util.CreateQosData(smPolicy.PccRuleIdGenarator, var5qi, arp)
-				logger.PolicyAuthorizationlog.Infof("Created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.QosId, qosData.Var5qi, qosData.Arp.PriorityLevel)
+				logger.PolicyAuthorizationlog.Debugf("Created QoS Data with QosID: %s, 5QI: %d, ARP: %d", qosData.QosId, qosData.Var5qi, qosData.Arp.PriorityLevel)
 
 				if var5qi <= 4 {
 					// update QoS Data according to request BitRate
 					var ul, dl bool
 					qosData, ul, dl = updateQosInMedComp(qosData, &medComp)
-					logger.PolicyAuthorizationlog.Infof("Updated QoS Bitrate: QosID: %s, UL changed: %v, DL changed: %v", qosData.QosId, ul, dl)
+					logger.PolicyAuthorizationlog.Debugf("Updated QoS Bitrate: QosID: %s, UL changed: %v, DL changed: %v", qosData.QosId, ul, dl)
 
 					if problemDetails := modifyRemainBitRate(smPolicy, &qosData, ul, dl); problemDetails != nil {
 						logger.PolicyAuthorizationlog.Errorf("Failed to modify remaining bitrate: %v", problemDetails)
@@ -324,18 +324,18 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					}
 				}
 				util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, nil, &qosData, nil, nil)
-				logger.PolicyAuthorizationlog.Infof("Set PCC Rule Related Data for RuleID: %s", pccRule.PccRuleId)
+				logger.PolicyAuthorizationlog.Debugf("Set PCC Rule Related Data for RuleID: %s", pccRule.PccRuleId)
 
 				smPolicy.PccRuleIdGenarator++
 				maxPrecedence++
-				logger.PolicyAuthorizationlog.Infof("New PCC Rule created: RuleID: %s, AppID: %s, QosID: %s", pccRule.PccRuleId, appID, qosData.QosId)
+				logger.PolicyAuthorizationlog.Debugf("New PCC Rule created: RuleID: %s, AppID: %s, QosID: %s", pccRule.PccRuleId, appID, qosData.QosId)
 			} else {
-				logger.PolicyAuthorizationlog.Infof("Found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.PccRuleId)
+				logger.PolicyAuthorizationlog.Debugf("Found existing PCC Rule for AppID: %s, RuleID: %s", appID, pccRule.PccRuleId)
 
 				// update pccRule's QoS
 				for _, qosID := range pccRule.RefQosData {
 					qosData := *smPolicy.PolicyDecision.QosDecs[qosID]
-					logger.PolicyAuthorizationlog.Infof("Evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.QosId, qosData.Var5qi)
+					logger.PolicyAuthorizationlog.Debugf("Evaluating existing QoS Data for update: QosID: %s, Var5QI: %d", qosData.QosId, qosData.Var5qi)
 
 					if qosData.Var5qi == var5qi && qosData.Var5qi <= 4 {
 						var ul, dl bool
@@ -347,7 +347,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 							return nil, "", problemDetails
 						}
 						smPolicy.PolicyDecision.QosDecs[qosData.QosId] = &qosData
-						logger.PolicyAuthorizationlog.Infof("QoS Data updated: QosID: %s", qosData.QosId)
+						logger.PolicyAuthorizationlog.Debugf("QoS Data updated: QosID: %s", qosData.QosId)
 					}
 				}
 			}
@@ -380,11 +380,7 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	// Event Subscription
 	eventSubs := make(map[models.AfEvent]models.AfNotifMethod)
 	if ascReqData.EvSubsc != nil {
-		logger.PolicyAuthorizationlog.Infof("Processing AF Event Subscriptions: total [%d] events", len(ascReqData.EvSubsc.Events))
-
 		for _, subs := range ascReqData.EvSubsc.Events {
-			logger.PolicyAuthorizationlog.Infof("Handling AF Event [%v] with initial NotifMethod [%v]", subs.Event, subs.NotifMethod)
-
 			if subs.NotifMethod == "" {
 				// default value "EVENT_DETECTION"
 				subs.NotifMethod = models.AfNotifMethod_EVENT_DETECTION
@@ -399,44 +395,33 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 			switch subs.Event {
 			case models.AfEvent_ACCESS_TYPE_CHANGE:
 				trig = models.PolicyControlRequestTrigger_AC_TY_CH
-				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
 
 			// case models.AfEvent_FAILED_RESOURCES_ALLOCATION:
 			// 	trig = models.PolicyControlRequestTrigger_RES_RELEASE
 
 			case models.AfEvent_PLMN_CHG:
 				trig = models.PolicyControlRequestTrigger_PLMN_CH
-				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
 
 			case models.AfEvent_QOS_NOTIF:
-				logger.PolicyAuthorizationlog.Infof("Handling QoS Notification subscription for AF Event [%v]", subs.Event)
-
 				// Subscriptions to Service Data Flow QoS notification control
 				for _, pccRuleID := range relatedPccRuleIds {
 					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
-					logger.PolicyAuthorizationlog.Infof("Updating QoS Data for PCC Rule [%s]", pccRuleID)
-
 					for _, qosID := range pccRule.RefQosData {
 						if qosData, ok := smPolicy.PolicyDecision.QosDecs[qosID]; ok {
-							logger.PolicyAuthorizationlog.Infof("  QoS Data [%s] before update: Qnc=%v", qosID, qosData.Qnc)
 							qosData.Qnc = true
 							smPolicy.PolicyDecision.QosDecs[qosID] = qosData
-							logger.PolicyAuthorizationlog.Infof("  QoS Data [%s] updated: Qnc=%v", qosID, qosData.Qnc)
 						} else {
 							logger.PolicyAuthorizationlog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
 						}
 					}
 				}
 				trig = models.PolicyControlRequestTrigger_QOS_NOTIF
-				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
 
 			case models.AfEvent_SUCCESSFUL_RESOURCES_ALLOCATION:
 				trig = models.PolicyControlRequestTrigger_SUCC_RES_ALLO
-				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
 
 			case models.AfEvent_USAGE_REPORT:
 				trig = models.PolicyControlRequestTrigger_US_RE
-				logger.PolicyAuthorizationlog.Infof("Mapped AF Event [%v] → Trigger [%v]", subs.Event, trig)
 
 			default:
 				logger.PolicyAuthorizationlog.Warnf("AF Event [%v] is unknown, skipping", subs.Event)
@@ -445,7 +430,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 
 			// Check and append trigger
 			if !util.CheckPolicyControlReqTrig(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig) {
-				logger.PolicyAuthorizationlog.Infof("Adding new Policy Control Request Trigger [%v]", trig)
 				smPolicy.PolicyDecision.PolicyCtrlReqTriggers = append(smPolicy.PolicyDecision.PolicyCtrlReqTriggers, trig)
 				updateSMpolicy = true
 			} else {
@@ -572,8 +556,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	}
 	pcfSelf.AppSessionPool.Store(appSessID, &data)
 	locationHeader := util.GetResourceUri(models.ServiceName_NPCF_POLICYAUTHORIZATION, appSessID)
-	logger.PolicyAuthorizationlog.Infof("App Session Created with ID: %s, Location: %s", appSessID, locationHeader)
-	logger.PolicyAuthorizationlog.Infof("app session Id[%s] Create", appSessID)
 	// Send Notification to SMF
 	if updateSMpolicy {
 		smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, smPolicy.PolicyContext.PduSessionId)
@@ -587,7 +569,6 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 		} else {
 			logger.PolicyAuthorizationlog.Infof("SmPolicyDecision data: %s", string(decisionJSON))
 		}
-		logger.PolicyAuthorizationlog.Infof("Sending SM Policy Update Notification to: %s", smPolicy.PolicyContext.NotificationUri)
 		notifyevent.DispatchSendSMPolicyUpdateNotifyEvent(smPolicy.PolicyContext.NotificationUri, &notification)
 	}
 	return appSessCtx, locationHeader, nil
@@ -602,11 +583,11 @@ func handleCombinedMediaSubComponents(
 ) (*models.PccRule, *models.ProblemDetails) {
 	// Print all existing PCC Rule IDs before creating new ones
 	for id, rule := range smPolicy.PolicyDecision.PccRules {
-		logger.PolicyAuthorizationlog.Infof("Existing PCC Rule ID: [%s]", id)
+		logger.PolicyAuthorizationlog.Debugf("Existing PCC Rule ID: [%s]", id)
 
 		// Print FlowDescriptions so you can identify IMS vs Internet
 		for _, fi := range rule.FlowInfos {
-			logger.PolicyAuthorizationlog.Infof("  FlowDescription: %s", fi.FlowDescription)
+			logger.PolicyAuthorizationlog.Debugf("  FlowDescription: %s", fi.FlowDescription)
 		}
 
 		// Print Qos IDs linked to this PCC Rule
@@ -614,7 +595,7 @@ func handleCombinedMediaSubComponents(
 			for _, qosRef := range rule.RefQosData {
 				qosData, ok := smPolicy.PolicyDecision.QosDecs[qosRef]
 				if ok {
-					logger.PolicyAuthorizationlog.Infof("  QosData ID: [%s]", qosData.QosId)
+					logger.PolicyAuthorizationlog.Debugf("  QosData ID: [%s]", qosData.QosId)
 				} else {
 					logger.PolicyAuthorizationlog.Warnf("  QosData reference [%s] not found", qosRef)
 				}
@@ -667,7 +648,7 @@ func handleCombinedMediaSubComponents(
 		tcData := util.CreateTcData(smPolicy.PccRuleIdGenarator, "", medSubComps[0].FStatus)
 		util.SetPccRuleRelatedData(smPolicy.PolicyDecision, pccRule, tcData, &qosData, nil, nil)
 		smPolicy.PccRuleIdGenarator++
-		logger.PolicyAuthorizationlog.Infof("PCC Rule ID [%s]", pccRule.PccRuleId)
+		logger.PolicyAuthorizationlog.Debugf("PCC Rule ID [%s]", pccRule.PccRuleId)
 	} else {
 		// ----------------------------------------------------------------
 		// Step 3 : Existing PCC Rule found, merge new flows and update if needed
@@ -678,7 +659,7 @@ func handleCombinedMediaSubComponents(
 			for _, qosRef := range pccRule.RefQosData {
 				qosData, ok := smPolicy.PolicyDecision.QosDecs[qosRef]
 				if ok {
-					logger.PolicyAuthorizationlog.Infof("Existing PCC Rule [%s] has QosData ID [%s]",
+					logger.PolicyAuthorizationlog.Debugf("Existing PCC Rule [%s] has QosData ID [%s]",
 						pccRule.PccRuleId, qosData.QosId)
 				} else {
 					logger.PolicyAuthorizationlog.Warnf("Existing PCC Rule [%s] has RefQosData [%s] but not found in QosDecs",
@@ -708,29 +689,26 @@ func handleCombinedMediaSubComponents(
 	}
 
 	smPolicy.PolicyDecision.PccRules[pccRule.PccRuleId] = pccRule
-	logger.PolicyAuthorizationlog.Infof("PCC Rule ID [%s] stored successfully in PolicyDecision", pccRule.PccRuleId)
-	logger.PolicyAuthorizationlog.Infof("Final PCC Rule Snapshot for ID [%s]:", pccRule.PccRuleId)
-	logger.PolicyAuthorizationlog.Infof("  Precedence: %d", pccRule.Precedence)
-	logger.PolicyAuthorizationlog.Infof("  FlowInfos:")
+	logger.PolicyAuthorizationlog.Debugf("PCC Rule ID [%s] stored successfully in PolicyDecision", pccRule.PccRuleId)
+	logger.PolicyAuthorizationlog.Debugf("Final PCC Rule Snapshot for ID [%s]:", pccRule.PccRuleId)
+	logger.PolicyAuthorizationlog.Debugf("Precedence: %d", pccRule.Precedence)
 	for _, fi := range pccRule.FlowInfos {
-		logger.PolicyAuthorizationlog.Infof("    FlowDescription: %s, PackFiltId: %s", fi.FlowDescription, fi.PackFiltId)
+		logger.PolicyAuthorizationlog.Debugf("FlowDescription: %s, PackFiltId: %s", fi.FlowDescription, fi.PackFiltId)
 	}
-	logger.PolicyAuthorizationlog.Infof("  RefQosData:")
+	logger.PolicyAuthorizationlog.Debugf("RefQosData:")
 	for _, qosRef := range pccRule.RefQosData {
 		qosData, ok := smPolicy.PolicyDecision.QosDecs[qosRef]
 		if ok {
-			logger.PolicyAuthorizationlog.Infof("    QosId: %s, 5QI: %d", qosData.QosId, qosData.Var5qi)
+			logger.PolicyAuthorizationlog.Debugf("QosId: %s, 5QI: %d", qosData.QosId, qosData.Var5qi)
 		} else {
 			logger.PolicyAuthorizationlog.Warnf("    QosData reference [%s] not found", qosRef)
 		}
 	}
-	logger.PolicyAuthorizationlog.Infof("  RefTcData: %v", pccRule.RefTcData)
-	logger.PolicyAuthorizationlog.Infof("  RefChgData: %v", pccRule.RefChgData)
 	pccRuleJSON, err := json.MarshalIndent(pccRule, "", "  ")
 	if err != nil {
 		logger.PolicyAuthorizationlog.Errorf("Failed to marshal PCC Rule [%s]: %+v", pccRule.PccRuleId, err)
 	} else {
-		logger.PolicyAuthorizationlog.Infof("PCC Rule [%s] Full Snapshot:\n%s", pccRule.PccRuleId, string(pccRuleJSON))
+		logger.PolicyAuthorizationlog.Debugf("PCC Rule [%s] Full Snapshot:\n%s", pccRule.PccRuleId, string(pccRuleJSON))
 	}
 	return pccRule, nil
 }
