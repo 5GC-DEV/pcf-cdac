@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/omec-project/openapi/models"
+	"github.com/omec-project/pcf/logger"
 )
 
 var MediaTypeTo5qiMap = map[models.MediaType]int32{
@@ -45,12 +46,12 @@ func CreateDefalutPccRules(id int32) *models.PccRule {
 
 // Get pcc rule Identity(PccRuleId-%d)
 func GetPccRuleId(id int32) string {
-	return fmt.Sprintf("PccRuleId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get qos Identity(QosId-%d)
 func GetQosId(id int32) string {
-	return fmt.Sprintf("QosId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get Cond Identity(CondId-%d)
@@ -60,7 +61,7 @@ func GetCondId(id int32) string {
 
 // Get Traffic Control Identity(TcId-%d)
 func GetTcId(id int32) string {
-	return fmt.Sprintf("TcId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Get Charging Identity(ChgId-%d)
@@ -75,7 +76,8 @@ func GetUmId(sponId, aspId string) string {
 
 // Get Packet Filter Identity(PackFiltId-%d)
 func GetPackFiltId(id int32) string {
-	return fmt.Sprintf("PackFiltId-%d", id)
+	// return fmt.Sprintf("PackFiltId-%d", id)
+	return fmt.Sprintf("%d", id)
 }
 
 // Create Pcc Rule with param id, precedence, flow information, appID
@@ -98,8 +100,10 @@ func CreateCondData(id int32) models.ConditionData {
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
+	qosId := GetQosId(id)
+	logger.PolicyAuthorizationlog.Debugf("Creating QosData: QosId [%s], Var5qi [%d], ARP PriorityLevel [%d]", qosId, var5qi, arp)
 	return models.QosData{
-		QosId:  GetQosId(id),
+		QosId:  qosId,
 		Var5qi: var5qi,
 		Arp: &models.Arp{
 			PriorityLevel: arp,
@@ -158,25 +162,37 @@ func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *m
 }
 
 func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
+	logger.PolicyAuthorizationlog.Debugf("Starting GetPccRuleByFlowInfos with %d PCC rules and %d incoming FlowInfos", len(pccRules), len(flowInfos))
 	found := false
 	set := make(map[string]models.FlowInformation)
 
 	for _, flowInfo := range flowInfos {
+		logger.PolicyAuthorizationlog.Debugf("Adding incoming flowInfo to set: FlowDescription=%s", flowInfo.FlowDescription)
 		set[flowInfo.FlowDescription] = flowInfo
 	}
 
 	for _, pccRule := range pccRules {
+		logger.PolicyAuthorizationlog.Debugf("Checking PCC Rule ID=%s with %d FlowInfos", pccRule.PccRuleId, len(pccRule.FlowInfos))
 		found = true
 		for _, flowInfo := range pccRule.FlowInfos {
 			if _, exists := set[flowInfo.FlowDescription]; !exists {
+				logger.PolicyAuthorizationlog.Debugf(
+					"FlowDescription=%s from PCC Rule ID=%s NOT found in incoming set — skipping this rule",
+					flowInfo.FlowDescription, pccRule.PccRuleId)
 				found = false
 				break
+			} else {
+				logger.PolicyAuthorizationlog.Debugf(
+					"FlowDescription=%s from PCC Rule ID=%s matched in incoming set",
+					flowInfo.FlowDescription, pccRule.PccRuleId)
 			}
 		}
 		if found {
+			logger.PolicyAuthorizationlog.Debugf("Match found — returning PCC Rule ID=%s", pccRule.PccRuleId)
 			return pccRule
 		}
 	}
+	logger.PolicyAuthorizationlog.Debugf("No matching PCC Rule found for given FlowInfos")
 	return nil
 }
 
