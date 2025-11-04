@@ -478,10 +478,6 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					logger.SMpolicylog.Warnln(problemDetail.Detail)
 					return nil, &problemDetail
 				}
-				/*if qosData.GbrDl != "" {
-					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL)
-				}*/
 				if qosData.GbrDl != "" {
 					var remainGbrDl float64
 					if smPolicy.RemainGbrDL != nil {
@@ -496,10 +492,6 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 						smPolicyContext.Dnn, qosData.GbrDl, remainGbrDl,
 					)
 				}
-				/*if qosData.GbrUl != "" {
-					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL)
-				}*/
 				if qosData.GbrUl != "" {
 					var remainGbrul float64
 					if smPolicy.RemainGbrUL != nil {
