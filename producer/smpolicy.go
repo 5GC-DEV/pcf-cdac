@@ -496,9 +496,23 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 						smPolicyContext.Dnn, qosData.GbrDl, remainGbrDl,
 					)
 				}
-				if qosData.GbrUl != "" {
+				/*if qosData.GbrUl != "" {
 					logger.SMpolicylog.Debugf("SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
 						smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL)
+				}*/
+				if qosData.GbrUl != "" {
+					var remainGbrul float64
+					if smPolicy.RemainGbrUL != nil {
+						remainGbrul = *smPolicy.RemainGbrUL
+					} else {
+						logger.SMpolicylog.Warnf("RemainGbrDL is nil for Dnn[%s]", smPolicyContext.Dnn)
+						remainGbrul = 0
+					}
+
+					logger.SMpolicylog.Debugf(
+						"SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
+						smPolicyContext.Dnn, qosData.GbrUl, remainGbrul,
+					)
 				}
 				util.SetPccRuleRelatedData(smPolicyDecision, pccRule, tcData, &qosData, nil, nil)
 				// link Packet filters to PccRule
