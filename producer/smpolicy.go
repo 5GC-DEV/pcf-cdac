@@ -479,32 +479,30 @@ func updateSmPolicyContextProcedure(request models.SmPolicyUpdateContextData, sm
 					return nil, &problemDetail
 				}
 				if qosData.GbrDl != "" {
-					var remainGbrDl float64
-					if smPolicy.RemainGbrDL != nil {
-						remainGbrDl = *smPolicy.RemainGbrDL
+					if smPolicy.RemainGbrDL == nil {
+						logger.SMpolicylog.Errorf(
+							"PCF Crash Debug: RemainGbrDL is NIL for Dnn[%s], qosData.GbrDl=%s",
+							smPolicyContext.Dnn, qosData.GbrDl,
+						)
 					} else {
-						logger.SMpolicylog.Warnf("RemainGbrDL is nil for Dnn[%s]", smPolicyContext.Dnn)
-						remainGbrDl = 0
+						logger.SMpolicylog.Infof(
+							"SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
+							smPolicyContext.Dnn, qosData.GbrDl, *smPolicy.RemainGbrDL,
+						)
 					}
-
-					logger.SMpolicylog.Debugf(
-						"SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrDl, remainGbrDl,
-					)
 				}
 				if qosData.GbrUl != "" {
-					var remainGbrul float64
-					if smPolicy.RemainGbrUL != nil {
-						remainGbrul = *smPolicy.RemainGbrUL
+					if smPolicy.RemainGbrUL == nil {
+						logger.SMpolicylog.Errorf(
+							"PCF Crash Debug: RemainGbrUL is NIL for Dnn[%s], qosData.GbrUl=%s",
+							smPolicyContext.Dnn, qosData.GbrUl,
+						)
 					} else {
-						logger.SMpolicylog.Warnf("RemainGbrDL is nil for Dnn[%s]", smPolicyContext.Dnn)
-						remainGbrul = 0
+						logger.SMpolicylog.Infof(
+							"SM Policy Dnn[%s] Data Aggregate decrease %s and then UL GBR remain[%.2f Kbps]",
+							smPolicyContext.Dnn, qosData.GbrUl, *smPolicy.RemainGbrUL,
+						)
 					}
-
-					logger.SMpolicylog.Debugf(
-						"SM Policy Dnn[%s] Data Aggregate decrease %s and then DL GBR remain[%.2f Kbps]",
-						smPolicyContext.Dnn, qosData.GbrUl, remainGbrul,
-					)
 				}
 				util.SetPccRuleRelatedData(smPolicyDecision, pccRule, tcData, &qosData, nil, nil)
 				// link Packet filters to PccRule
