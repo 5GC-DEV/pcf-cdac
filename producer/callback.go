@@ -50,6 +50,9 @@ func HandleSmPolicyNotify(request *httpwrapper.Request) *httpwrapper.Response {
 
 // SmPolicyNotifyProcedure TODO: handle SM Policy Notify
 func SmPolicyNotifyProcedure(supi string, notification models.PolicyDataChangeNotification) {
+	// SmPolicyNotifyProcedure TODO: handle SM Policy Notify
+	// SM Policy Notify handling is pending implementation;
+	// planned for a future release.
 }
 
 // HandleNfSubscriptionStatusNotify gets the notification data from NRF
