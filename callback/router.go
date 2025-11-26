@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
+	loggerUtil "github.com/5GC-DEV/util-cdac/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/pcf/logger"
-	loggerUtil "github.com/omec-project/util/logger"
 )
 
 // Route is the information for every URI.

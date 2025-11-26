@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/openapi"
@@ -22,7 +23,6 @@ import (
 	"github.com/omec-project/pcf/logger"
 	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 // SmPoliciesPost -

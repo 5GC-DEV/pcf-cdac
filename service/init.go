@@ -9,6 +9,7 @@ package service
 
 import (
 	"bufio"
+	"crypto/tls"
 	"fmt"
 	"math"
 	"os"
@@ -23,6 +24,9 @@ import (
 
 	grpcClient "github.com/5GC-DEV/config5g-cdac/proto/client"
 	protos "github.com/5GC-DEV/config5g-cdac/proto/sdcoreConfig"
+	"github.com/5GC-DEV/util-cdac/http2_util"
+	"github.com/5GC-DEV/util-cdac/idgenerator"
+	utilLogger "github.com/5GC-DEV/util-cdac/logger"
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
 	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
@@ -44,9 +48,6 @@ import (
 	"github.com/omec-project/pcf/smpolicy"
 	"github.com/omec-project/pcf/uepolicy"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/http2_util"
-	"github.com/omec-project/util/idgenerator"
-	utilLogger "github.com/omec-project/util/logger"
 	"github.com/urfave/cli/v3"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -292,7 +293,25 @@ func (pcf *PCF) Start() {
 	case "http":
 		err = server.ListenAndServe()
 	case "https":
-		err = server.ListenAndServeTLS(self.PEM, self.Key)
+		// err = server.ListenAndServeTLS(self.PEM, self.Key)
+		// 1. Load certificate
+		cert, err := tls.LoadX509KeyPair(self.PEM, self.Key)
+		if err != nil {
+			logger.InitLog.Fatalf("LoadX509KeyPair failed: %v", err)
+		}
+
+		// 2. Attach cert + enable HTTP/2
+		server.TLSConfig.Certificates = []tls.Certificate{cert}
+		server.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
+
+		// 3. Create manual TLS listener
+		ln, err := tls.Listen("tcp", addr, server.TLSConfig)
+		if err != nil {
+			logger.InitLog.Fatalf("TLS listen failed: %v", err)
+		}
+
+		// 4. Run using Serve() so KeyLogWriter is used
+		err = server.Serve(ln)
 	default:
 		logger.InitLog.Fatalf("HTTP server setup failed: invalid server scheme %+v", serverScheme)
 		return

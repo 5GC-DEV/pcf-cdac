@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/omec-project/openapi/models"
 	nrfCache "github.com/omec-project/openapi/nrfcache"
 	"github.com/omec-project/pcf/consumer"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 var (

@@ -18,9 +18,9 @@ import (
 	"net/http"
 	"strings"
 
+	utilLogger "github.com/5GC-DEV/util-cdac/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/pcf/logger"
-	utilLogger "github.com/omec-project/util/logger"
 )
 
 type Route struct {

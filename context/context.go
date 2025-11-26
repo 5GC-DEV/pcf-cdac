@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/5GC-DEV/util-cdac/idgenerator"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/idgenerator"
 	"go.uber.org/zap"
 )
 

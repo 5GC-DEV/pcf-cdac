@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/cydev/zero"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
@@ -23,7 +24,6 @@ import (
 	"github.com/omec-project/pcf/logger"
 	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 func transferAfRoutReqRmToAfRoutReq(AfRoutReqRm *models.AfRoutingRequirementRm) *models.AfRoutingRequirement {

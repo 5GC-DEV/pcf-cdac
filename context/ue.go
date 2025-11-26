@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/5GC-DEV/util-cdac/idgenerator"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/idgenerator"
 )
 
 // key is supi

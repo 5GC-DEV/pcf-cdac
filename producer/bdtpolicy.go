@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/antihax/optional"
 	"github.com/google/uuid"
 	"github.com/mohae/deepcopy"
@@ -20,7 +21,6 @@ import (
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 func HandleGetBDTPolicyContextRequest(request *httpwrapper.Request) *httpwrapper.Response {

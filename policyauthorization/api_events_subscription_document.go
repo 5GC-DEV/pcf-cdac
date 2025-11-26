@@ -17,13 +17,13 @@ package policyauthorization
 import (
 	"net/http"
 
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 // HTTPDeleteEventsSubsc - deletes the Events Subscription subresource

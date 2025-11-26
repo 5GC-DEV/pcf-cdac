@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 type UEAmPolicy struct {
