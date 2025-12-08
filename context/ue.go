@@ -381,12 +381,31 @@ func DecreaseRamainBitRateToZero(remainBitRate *float64) string {
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+/*func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}
 	for _, amPolicy := range ue.AMPolicyData {
 		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+			return amPolicy
+		}
+	}
+	return nil
+}*/
+
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+	if ue == nil || plmnId == nil {
+		return nil
+	}
+
+	if ue.AMPolicyData == nil {
+		logger.CtxLog.Warnf("AMPolicyData is nil for UE %s", ue.Supi)
+		return nil
+	}
+
+	for _, amPolicy := range ue.AMPolicyData {
+		if amPolicy.AccessType == anType &&
+			reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
 			return amPolicy
 		}
 	}
