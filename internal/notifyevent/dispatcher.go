@@ -7,7 +7,7 @@ package notifyevent
 
 import (
 	"github.com/5GC-DEV/event"
-	"github.com/omec-project/openapi/models"
+	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/omec-project/pcf/logger"
 )
 

@@ -22,9 +22,9 @@ import (
 	"time"
 
 	protos "github.com/5GC-DEV/config5g-cdac/proto/sdcoreConfig"
+	"github.com/5GC-DEV/openapi-cdac/Nnrf_NFDiscovery"
+	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/antihax/optional"
-	"github.com/omec-project/openapi/Nnrf_NFDiscovery"
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"

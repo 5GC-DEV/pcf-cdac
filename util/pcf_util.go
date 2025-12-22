@@ -13,12 +13,12 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/omec-project/openapi/Namf_Communication"
-	"github.com/omec-project/openapi/Npcf_AMPolicy"
-	"github.com/omec-project/openapi/Npcf_PolicyAuthorization"
-	"github.com/omec-project/openapi/Npcf_SMPolicyControl"
-	"github.com/omec-project/openapi/Nudr_DataRepository"
-	"github.com/omec-project/openapi/models"
+	"github.com/5GC-DEV/openapi-cdac/Namf_Communication"
+	"github.com/5GC-DEV/openapi-cdac/Npcf_AMPolicy"
+	"github.com/5GC-DEV/openapi-cdac/Npcf_PolicyAuthorization"
+	"github.com/5GC-DEV/openapi-cdac/Npcf_SMPolicyControl"
+	"github.com/5GC-DEV/openapi-cdac/Nudr_DataRepository"
+	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 )

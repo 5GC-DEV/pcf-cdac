@@ -10,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/5GC-DEV/event"
-	"github.com/omec-project/openapi/models"
+	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
 )
