@@ -446,19 +446,26 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 	}
 	for _, pccRuleID := range relatedPccRuleIds {
 		if pccRule, ok := smPolicy.PolicyDecision.PccRules[pccRuleID]; ok {
-			filteredDecision.PccRules[pccRuleID] = pccRule
+			// filteredDecision.PccRules[pccRuleID] = pccRule
+			pccCopy := *pccRule
+			filteredDecision.PccRules[pccRuleID] = &pccCopy
 
 			// include QoS data
 			for _, qosID := range pccRule.RefQosData {
 				if qos, ok := smPolicy.PolicyDecision.QosDecs[qosID]; ok {
-					filteredDecision.QosDecs[qosID] = qos
+					// filteredDecision.QosDecs[qosID] = qos
+					logger.PolicyAuthorizationlog.Warnf("QosData BEFORE filter copy: ID=%s %+v", qosID, qos)
+					qosCopy := *qos
+					filteredDecision.QosDecs[qosID] = &qosCopy
 				}
 			}
 
 			// include Traffic Control data
 			for _, tcID := range pccRule.RefTcData {
 				if tc, ok := smPolicy.PolicyDecision.TraffContDecs[tcID]; ok {
-					filteredDecision.TraffContDecs[tcID] = tc
+					// filteredDecision.TraffContDecs[tcID] = tc
+					tcCopy := *tc
+					filteredDecision.TraffContDecs[tcID] = &tcCopy
 				}
 			}
 		}
