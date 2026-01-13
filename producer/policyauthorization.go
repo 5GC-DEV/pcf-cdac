@@ -408,8 +408,9 @@ func postAppSessCtxProcedure(appSessCtx *models.AppSessionContext) (*models.AppS
 					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
 					for _, qosID := range pccRule.RefQosData {
 						if qosData, ok := smPolicy.PolicyDecision.QosDecs[qosID]; ok {
-							qosData.Qnc = true
-							smPolicy.PolicyDecision.QosDecs[qosID] = qosData
+							qosCopy := *qosData
+							qosCopy.Qnc = true
+							smPolicy.PolicyDecision.QosDecs[qosID] = &qosCopy
 						} else {
 							logger.PolicyAuthorizationlog.Warnf("  QoS Data reference [%s] not found in PolicyDecision", qosID)
 						}
@@ -1023,8 +1024,9 @@ func ModAppSessionContextProcedure(appSessID string,
 					pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
 					for _, qosID := range pccRule.RefQosData {
 						qosData := smPolicy.PolicyDecision.QosDecs[qosID]
-						qosData.Qnc = true
-						smPolicy.PolicyDecision.QosDecs[qosID] = qosData
+						qosCopy := *qosData
+						qosCopy.Qnc = true
+						smPolicy.PolicyDecision.QosDecs[qosID] = &qosCopy
 					}
 				}
 				trig = models.PolicyControlRequestTrigger_QOS_NOTIF
@@ -1289,8 +1291,9 @@ func UpdateEventsSubscContextProcedure(appSessID string, eventsSubscReqData mode
 				pccRule := smPolicy.PolicyDecision.PccRules[pccRuleID]
 				for _, qosID := range pccRule.RefQosData {
 					qosData := smPolicy.PolicyDecision.QosDecs[qosID]
-					qosData.Qnc = true
-					smPolicy.PolicyDecision.QosDecs[qosID] = qosData
+					qosCopy := *qosData
+					qosCopy.Qnc = true
+					smPolicy.PolicyDecision.QosDecs[qosID] = &qosCopy
 				}
 			}
 			trig = models.PolicyControlRequestTrigger_QOS_NOTIF
