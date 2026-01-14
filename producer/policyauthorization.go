@@ -1770,17 +1770,15 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 		}
 	}
 	// update Downlink MBR
-	if maxBwDl == 0.0 {
-		updatedQosData.MaxbrDl = comp.MarBwDl
-	} else {
+	if maxBwDl != 0.0 {
 		updatedQosData.MaxbrDl = pcf_context.ConvertBitRateToString(maxBwDl)
 	}
+
 	// update Uplink MBR
-	if maxBwUl == 0.0 {
-		updatedQosData.MaxbrUl = comp.MarBwUl
-	} else {
+	if maxBwUl != 0.0 {
 		updatedQosData.MaxbrUl = pcf_context.ConvertBitRateToString(maxBwUl)
 	}
+
 	// if gbr == 0 then assign gbr = mbr
 
 	// update Downlink GBR
@@ -1791,6 +1789,11 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 	if minBwUl != 0.0 {
 		updatedQosData.GbrUl = pcf_context.ConvertBitRateToString(minBwUl)
 	}
+	if maxBwUl == 0 && maxBwDl == 0 {
+		logger.PolicyAuthorizationlog.Debugf(
+			"MediaSubComp produced zero bandwidth, keeping existing QoS unchanged")
+	}
+
 	return updatedQosData, ulExist, dlExist
 }
 
