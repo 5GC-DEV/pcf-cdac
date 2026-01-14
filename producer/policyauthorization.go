@@ -633,7 +633,7 @@ func handleCombinedMediaSubComponents(
 		logger.PolicyAuthorizationlog.Infof("Created QosData ID [%s] (5QI=%d)", qosData.QosId, var5qi)
 
 		// If var5qi <= 4 (GBR flows), update QoS according to MediaSubComponents
-		if var5qi <= 4 {
+		/*if var5qi <= 4 {
 			var finalUL, finalDL bool
 			for _, medSubComp := range medSubComps {
 				var ul, dl bool
@@ -644,6 +644,47 @@ func handleCombinedMediaSubComponents(
 			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, finalUL, finalDL); problemDetails != nil {
 				return nil, problemDetails
 			}
+		}*/
+		if var5qi <= 4 {
+			logger.PolicyAuthorizationlog.Infof("GBR flow detected (5QI=%d), computing QoS from MediaSubComponents", var5qi)
+
+			var finalUL, finalDL bool
+
+			for idx, medSubComp := range medSubComps {
+				logger.PolicyAuthorizationlog.Infof(
+					"Processing MediaSubComp[%d]: FlowUsage=%v, FStatus=%v, FDescs=%d",
+					idx, medSubComp.FlowUsage, medSubComp.FStatus, len(medSubComp.FDescs))
+
+				var ul, dl bool
+
+				before := qosData
+
+				qosData, ul, dl = updateQosInMedSubComp(&qosData, medComp, &medSubComp)
+
+				logger.PolicyAuthorizationlog.Infof(
+					"After updateQosInMedSubComp[%d]: ul=%v dl=%v | Before(MaxUl=%s MaxDl=%s GbrUl=%s GbrDl=%s) -> After(MaxUl=%s MaxDl=%s GbrUl=%s GbrDl=%s)",
+					idx, ul, dl,
+					before.MaxbrUl, before.MaxbrDl, before.GbrUl, before.GbrDl,
+					qosData.MaxbrUl, qosData.MaxbrDl, qosData.GbrUl, qosData.GbrDl)
+
+				finalUL = finalUL || ul
+				finalDL = finalDL || dl
+			}
+			logger.PolicyAuthorizationlog.Infof(
+				"Before modifyRemainBitRate: finalUL=%v finalDL=%v | MaxUl=%s MaxDl=%s GbrUl=%s GbrDl=%s",
+				finalUL, finalDL,
+				qosData.MaxbrUl, qosData.MaxbrDl,
+				qosData.GbrUl, qosData.GbrDl)
+
+			if problemDetails := modifyRemainBitRate(smPolicy, &qosData, finalUL, finalDL); problemDetails != nil {
+				logger.PolicyAuthorizationlog.Errorf("modifyRemainBitRate failed: %+v", problemDetails)
+				return nil, problemDetails
+			}
+
+			logger.PolicyAuthorizationlog.Infof(
+				"After modifyRemainBitRate: MaxUl=%s MaxDl=%s GbrUl=%s GbrDl=%s",
+				qosData.MaxbrUl, qosData.MaxbrDl,
+				qosData.GbrUl, qosData.GbrDl)
 		}
 
 		// Assign Packet Filter IDs to FlowInfos and map them to PCC Rule
@@ -1753,7 +1794,7 @@ func updateQosInMedComp(qosData models.QosData, comp *models.MediaComponent) (mo
 	return updatedQosData, ulExist, dlExist
 }
 
-func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
+/*func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
 	subsComp *models.MediaSubComponent,
 ) (updatedQosData models.QosData, ulExist, dlExist bool) {
 	updatedQosData = *qosData
@@ -1877,6 +1918,193 @@ func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
 	if minBwUl != 0.0 {
 		updatedQosData.GbrUl = pcf_context.ConvertBitRateToString(minBwUl)
 	}
+	return updatedQosData, ulExist, dlExist
+}*/
+
+func updateQosInMedSubComp(qosData *models.QosData, comp *models.MediaComponent,
+	subsComp *models.MediaSubComponent,
+) (updatedQosData models.QosData, ulExist, dlExist bool) {
+
+	logger.PolicyAuthorizationlog.Debugf(
+		"updateQosInMedSubComp called: compFStatus=%v, FlowUsage=%v, comp.MarBwUl=%s, comp.MarBwDl=%s, subsComp.MarBwUl=%s, subsComp.MarBwDl=%s",
+		comp.FStatus, subsComp.FlowUsage, comp.MarBwUl, comp.MarBwDl, subsComp.MarBwUl, subsComp.MarBwDl)
+
+	updatedQosData = *qosData
+
+	if comp.FStatus == models.FlowStatus_REMOVED {
+		logger.PolicyAuthorizationlog.Infof(
+			"MediaComponent is REMOVED, clearing QoS MBR values")
+
+		updatedQosData.MaxbrDl = ""
+		updatedQosData.MaxbrUl = ""
+		return updatedQosData, false, false
+	}
+
+	maxBwUl := 0.0
+	maxBwDl := 0.0
+	minBwUl := 0.0
+	minBwDl := 0.0
+
+	for idx, flow := range subsComp.FDescs {
+		_, dir, err := flowDescFromN5toN7(flow)
+		if err != nil {
+			logger.PolicyAuthorizationlog.Errorf(
+				"flowDescFromN5toN7 error in updateQosInMedSubComp (flow %d): %+v", idx, err)
+			continue
+		}
+
+		logger.PolicyAuthorizationlog.Debugf(
+			"Processing flow %d: direction=%v, FlowUsage=%v", idx, dir, subsComp.FlowUsage)
+
+		both := false
+		if dir == models.FlowDirection_BIDIRECTIONAL {
+			both = true
+		}
+
+		if subsComp.FlowUsage != models.FlowUsage_RTCP {
+			// not RTCP
+			if both || dir == models.FlowDirection_UPLINK {
+				ulExist = true
+				if comp.MarBwUl != "" {
+					bwUl, err := pcf_context.ConvertBitRateToKbps(comp.MarBwUl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps UL error: %+v", err)
+					} else {
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding UL MBR (non-RTCP): +%f kbps", bwUl)
+						maxBwUl += bwUl
+					}
+				}
+				if comp.MirBwUl != "" {
+					bwUl, err := pcf_context.ConvertBitRateToKbps(comp.MirBwUl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps UL MIR error: %+v", err)
+					} else {
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding UL GBR (non-RTCP): +%f kbps", bwUl)
+						minBwUl += bwUl
+					}
+				}
+			}
+
+			if both || dir == models.FlowDirection_DOWNLINK {
+				dlExist = true
+				if comp.MarBwDl != "" {
+					bwDl, err := pcf_context.ConvertBitRateToKbps(comp.MarBwDl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps DL error: %+v", err)
+					} else {
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding DL MBR (non-RTCP): +%f kbps", bwDl)
+						maxBwDl += bwDl
+					}
+				}
+				if comp.MirBwDl != "" {
+					bwDl, err := pcf_context.ConvertBitRateToKbps(comp.MirBwDl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps DL MIR error: %+v", err)
+					} else {
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding DL GBR (non-RTCP): +%f kbps", bwDl)
+						minBwDl += bwDl
+					}
+				}
+			}
+
+		} else {
+			// RTCP flow
+			logger.PolicyAuthorizationlog.Debugf("RTCP flow handling (5%% fallback logic may apply)")
+
+			if both || dir == models.FlowDirection_UPLINK {
+				ulExist = true
+				if subsComp.MarBwUl != "" {
+					bwUl, err := pcf_context.ConvertBitRateToKbps(subsComp.MarBwUl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps subsComp UL error: %+v", err)
+					} else {
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding UL MBR (RTCP explicit): +%f kbps", bwUl)
+						maxBwUl += bwUl
+					}
+				} else if comp.MarBwUl != "" {
+					bwUl, err := pcf_context.ConvertBitRateToKbps(comp.MarBwUl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps comp UL error: %+v", err)
+					} else {
+						add := 0.05 * bwUl
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding UL MBR (RTCP 5%% fallback): +%f kbps (5%% of %f)", add, bwUl)
+						maxBwUl += add
+					}
+				}
+			}
+
+			if both || dir == models.FlowDirection_DOWNLINK {
+				dlExist = true
+				if subsComp.MarBwDl != "" {
+					bwDl, err := pcf_context.ConvertBitRateToKbps(subsComp.MarBwDl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps subsComp DL error: %+v", err)
+					} else {
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding DL MBR (RTCP explicit): +%f kbps", bwDl)
+						maxBwDl += bwDl
+					}
+				} else if comp.MarBwDl != "" {
+					bwDl, err := pcf_context.ConvertBitRateToKbps(comp.MarBwDl)
+					if err != nil {
+						logger.PolicyAuthorizationlog.Errorf(
+							"ConvertBitRateToKbps comp DL error: %+v", err)
+					} else {
+						add := 0.05 * bwDl
+						logger.PolicyAuthorizationlog.Debugf(
+							"Adding DL MBR (RTCP 5%% fallback): +%f kbps (5%% of %f)", add, bwDl)
+						maxBwDl += add
+					}
+				}
+			}
+		}
+	}
+
+	logger.PolicyAuthorizationlog.Debugf(
+		"Accumulated BW: maxBwUl=%f, maxBwDl=%f, minBwUl=%f, minBwDl=%f",
+		maxBwUl, maxBwDl, minBwUl, minBwDl)
+
+	// update Downlink MBR
+	if maxBwDl == 0.0 {
+		updatedQosData.MaxbrDl = comp.MarBwDl
+	} else {
+		updatedQosData.MaxbrDl = pcf_context.ConvertBitRateToString(maxBwDl)
+	}
+
+	// update Uplink MBR
+	if maxBwUl == 0.0 {
+		updatedQosData.MaxbrUl = comp.MarBwUl
+	} else {
+		updatedQosData.MaxbrUl = pcf_context.ConvertBitRateToString(maxBwUl)
+	}
+
+	// update GBRs
+	if minBwDl != 0.0 {
+		updatedQosData.GbrDl = pcf_context.ConvertBitRateToString(minBwDl)
+	}
+	if minBwUl != 0.0 {
+		updatedQosData.GbrUl = pcf_context.ConvertBitRateToString(minBwUl)
+	}
+
+	logger.PolicyAuthorizationlog.Infof(
+		"Final QoS: MaxbrUl=%s, MaxbrDl=%s, GbrUl=%s, GbrDl=%s, ulExist=%v, dlExist=%v",
+		updatedQosData.MaxbrUl, updatedQosData.MaxbrDl,
+		updatedQosData.GbrUl, updatedQosData.GbrDl,
+		ulExist, dlExist)
+
 	return updatedQosData, ulExist, dlExist
 }
 
