@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/5GC-DEV/openapi-cdac"
+	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/mohae/deepcopy"
-	"github.com/omec-project/openapi"
-	"github.com/omec-project/openapi/models"
 	"github.com/omec-project/pcf/consumer"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
