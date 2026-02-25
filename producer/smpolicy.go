@@ -148,6 +148,18 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
 							decision.QosDecs[key] = copiedQosData
+							if copiedQosData.Var5qi == 5 {
+								copiedQosData.Arp.PreemptCap = models.PreemptionCapability_NOT_PREEMPT
+								copiedQosData.Arp.PreemptVuln = models.PreemptionVulnerability_NOT_PREEMPTABLE
+								copiedQosData.Arp.PriorityLevel = 1
+							}
+							logger.SMpolicylog.Infof(
+								"IMS QoS Applied: 5QI=%d, Priority=%d, Cap=%v, Vuln=%v",
+								copiedQosData.Var5qi,
+								copiedQosData.Arp.PriorityLevel,
+								copiedQosData.Arp.PreemptCap,
+								copiedQosData.Arp.PreemptVuln,
+							)
 							QosDecskey = key
 						} else {
 							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
