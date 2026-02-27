@@ -43,15 +43,20 @@ var SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requesterNfType mod
 	configuration.SetBasePath(nrfUri)
 	client := Nnrf_NFDiscovery.NewAPIClient(configuration)
 	result, res, err := StoreApiSearchNFInstances(client.NFInstancesStoreApi, context.TODO(), targetNfType, requesterNfType, param)
+	if err != nil {
+		logger.ConsumerLog.Errorf("NRF SearchNFInstances failed: %+v", err)
+		return models.SearchResult{}, err
+	}
+	if res != nil {
+		defer func() {
+			if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
+				err = fmt.Errorf("SearchNFInstances' response body cannot close: %w", bodyCloseErr)
+			}
+		}()
+	}
 	if res != nil && res.StatusCode == http.StatusTemporaryRedirect {
 		err = fmt.Errorf("temporary redirect for non NRF consumer")
 	}
-	defer func() {
-		if bodyCloseErr := res.Body.Close(); bodyCloseErr != nil {
-			err = fmt.Errorf("SearchNFInstances' response body cannot close: %w", bodyCloseErr)
-		}
-	}()
-
 	pcfSelf := pcfContext.PCF_Self()
 	var nrfSubData models.NrfSubscriptionData
 	var problemDetails *models.ProblemDetails
