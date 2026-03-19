@@ -805,7 +805,7 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 				}
 
 				for _, imsi := range devgroup.Imsi {
-					logger.GrpcLog.Infof("IMSI: %v sliceid: %v DNN: %v Sessionrule: %v slice: %v", imsi, sliceid, dnn, sessionrule, slice)
+					logger.GrpcLog.Debugf("IMSI: %v sliceid: %v DNN: %v Sessionrule: %v slice: %v", imsi, sliceid, dnn, sessionrule, slice)
 					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
 				}
 			}
