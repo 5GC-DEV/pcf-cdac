@@ -145,10 +145,61 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			var QosDecskey string
 			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
+
+					logger.SMpolicylog.Infof(
+						"Evaluating QosData key[%s] -> QosId[%s], Var5QI[%d], MaxBrUl[%s], MaxBrDl[%s], "+
+							"GBrUl[%s], GBrDl[%s], PriorityLevel[%d], ARP[%+v]",
+						key,
+						qosData.QosId,
+						qosData.Var5qi,
+						qosData.MaxbrUl,
+						qosData.MaxbrDl,
+						qosData.GbrUl,
+						qosData.GbrDl,
+						qosData.PriorityLevel,
+						qosData.Arp,
+					)
+
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
+
+						logger.SMpolicylog.Infof(
+							"Matched QosData for requested 5QI[%d] with key[%s]",
+							request.SubsDefQos.Var5qi,
+							key,
+						)
+
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
+
+							logger.SMpolicylog.Infof(
+								"Qos Data Changes:\n"+
+									"[to add:[\n"+
+									"[name:[%s], QosData:["+
+									"QosId:[%s], Var5QI:[%d], MaxBrUl:[%s], MaxBrDl:[%s], "+
+									"GBrUl:[%s], GBrDl:[%s], PriorityLevel:[%d], "+
+									"ARP:[%+v]"+
+									"]]\n"+
+									"]]\n"+
+									"[to mod:[]]\n"+
+									"[to del:[]]",
+								key,
+								copiedQosData.QosId,
+								copiedQosData.Var5qi,
+								copiedQosData.MaxbrUl,
+								copiedQosData.MaxbrDl,
+								copiedQosData.GbrUl,
+								copiedQosData.GbrDl,
+								copiedQosData.PriorityLevel,
+								copiedQosData.Arp,
+							)
+
 							decision.QosDecs[key] = copiedQosData
 							QosDecskey = key
+
+							logger.SMpolicylog.Infof(
+								"Copied QosData key[%s] successfully into SM Policy Decision",
+								key,
+							)
+
 						} else {
 							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
 						}
