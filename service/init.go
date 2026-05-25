@@ -617,10 +617,45 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_PREEMPTABLE
 				}
 			}
-			if pccrule.Qos.MaxbrUl == 0 && pccrule.Qos.MaxbrDl == 0 && pccrule.Qos.GbrUl == 0 && pccrule.Qos.GbrDl == 0 {
+			/*if pccrule.Qos.MaxbrUl == 0 && pccrule.Qos.MaxbrDl == 0 && pccrule.Qos.GbrUl == 0 && pccrule.Qos.GbrDl == 0 {
 				// getting from sessionrule
 				qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
 				qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
+			}*/
+			if pccrule.Qos.MaxbrUl == 0 &&
+				pccrule.Qos.MaxbrDl == 0 &&
+				pccrule.Qos.GbrUl == 0 &&
+				pccrule.Qos.GbrDl == 0 {
+
+				// Apply Session AMBR only for matching 5QI
+				if sessionRule.AuthDefQos != nil &&
+					qos.Var5qi == sessionRule.AuthDefQos.Var5qi {
+
+					logger.GrpcLog.Infof(
+						"Applying SessionRule AMBR to matching QosData "+
+							"5QI[%d], UL[%s], DL[%s]",
+						qos.Var5qi,
+						sessionRule.AuthSessAmbr.Uplink,
+						sessionRule.AuthSessAmbr.Downlink,
+					)
+
+					qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
+					qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
+
+				} else {
+
+					logger.GrpcLog.Infof(
+						"Skipping SessionRule AMBR assignment for QosData 5QI[%d], "+
+							"SessionRule5QI[%d]",
+						qos.Var5qi,
+						func() int32 {
+							if sessionRule.AuthDefQos != nil {
+								return sessionRule.AuthDefQos.Var5qi
+							}
+							return -1
+						}(),
+					)
+				}
 			}
 			//rule.RefQosData = append(rule.RefQosData, qos.QosId)
 			//if pccPolicy.QosDecs == nil {
