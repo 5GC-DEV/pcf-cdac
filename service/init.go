@@ -29,6 +29,7 @@ import (
 	nrfCache "github.com/5GC-DEV/openapi-cdac/nrfcache"
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
+	"github.com/mohae/deepcopy"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
 	"github.com/omec-project/pcf/callback"
@@ -757,16 +758,112 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 
 	// Get the PCC rules for the slice and session rule
 	pccPolicy := getPccRules(slice, sessionrule)
+	// Debug generated QoS data before storing
+	for key, qosData := range pccPolicy.QosDecs {
+
+		logger.GrpcLog.Infof(
+			"[BEFORE STORE] Generated QosDecs Key[%s] -> "+
+				"Pointer[%p], "+
+				"QosId[%s], "+
+				"5QI[%d], "+
+				"MaxBrUl[%s], "+
+				"MaxBrDl[%s], "+
+				"GbrUl[%s], "+
+				"GbrDl[%s], "+
+				"PriorityLevel[%d], "+
+				"ARP[%+v]",
+			key,
+			qosData,
+			qosData.QosId,
+			qosData.Var5qi,
+			qosData.MaxbrUl,
+			qosData.MaxbrDl,
+			qosData.GbrUl,
+			qosData.GbrDl,
+			qosData.PriorityLevel,
+			qosData.Arp,
+		)
+	}
 
 	// Store the retrieved PCC rules
-	for index, element := range pccPolicy.PccRules {
+	/*for index, element := range pccPolicy.PccRules {
 		policyData.PccPolicy[sliceid].PccRules[index] = element
+	}*/
+	// Store PCC Rules using deep copy
+	for index, element := range pccPolicy.PccRules {
+
+		if copiedPccRule, ok := deepcopy.Copy(element).(*models.PccRule); ok {
+
+			policyData.PccPolicy[sliceid].PccRules[index] = copiedPccRule
+
+			logger.GrpcLog.Infof(
+				"[STORE] PccRule[%s] stored successfully Pointer[%p]",
+				index,
+				copiedPccRule,
+			)
+		} else {
+			logger.GrpcLog.Warnf("Failed to deepcopy PccRule[%s]", index)
+		}
 	}
-	for index, element := range pccPolicy.QosDecs {
+	/*for index, element := range pccPolicy.QosDecs {
 		policyData.PccPolicy[sliceid].QosDecs[index] = element
+	}*/
+	// Store QosDecs using deep copy
+	for index, element := range pccPolicy.QosDecs {
+
+		if copiedQosData, ok := deepcopy.Copy(element).(*models.QosData); ok {
+
+			policyData.PccPolicy[sliceid].QosDecs[index] = copiedQosData
+
+			logger.GrpcLog.Infof(
+				"[STORE] QosDecs[%s] -> "+
+					"Pointer[%p], "+
+					"QosId[%s], "+
+					"5QI[%d], "+
+					"MaxBrUl[%s], "+
+					"MaxBrDl[%s], "+
+					"ARP[%+v]",
+				index,
+				copiedQosData,
+				copiedQosData.QosId,
+				copiedQosData.Var5qi,
+				copiedQosData.MaxbrUl,
+				copiedQosData.MaxbrDl,
+				copiedQosData.Arp,
+			)
+
+		} else {
+			logger.GrpcLog.Warnf("Failed to deepcopy QosDecs[%s]", index)
+		}
 	}
 	for index, element := range pccPolicy.TraffContDecs {
 		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+	}
+	// Final verification after storing
+	for key, qosData := range policyData.PccPolicy[sliceid].QosDecs {
+
+		logger.GrpcLog.Infof(
+			"[AFTER STORE] Final QosDecs Key[%s] -> "+
+				"Pointer[%p], "+
+				"QosId[%s], "+
+				"5QI[%d], "+
+				"MaxBrUl[%s], "+
+				"MaxBrDl[%s], "+
+				"GbrUl[%s], "+
+				"GbrDl[%s], "+
+				"PriorityLevel[%d], "+
+				"ARP[%+v]",
+			key,
+			qosData,
+			qosData.QosId,
+			qosData.Var5qi,
+			qosData.MaxbrUl,
+			qosData.MaxbrDl,
+			qosData.GbrUl,
+			qosData.GbrDl,
+			qosData.PriorityLevel,
+			qosData.Arp,
+		)
 	}
 	// Log the policy data for the IMSI
 	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
