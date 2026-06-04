@@ -83,6 +83,13 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		}
 		var response *http.Response
 		smData, response, err = client.DefaultApi.PolicyDataUesUeIdSmDataGet(context.Background(), ue.Supi, &param)
+		logger.SMpolicylog.Infof(
+			"Retrieved SM Data UE=%s DNN=%s Slice=%+v smData=%+v",
+			ue.Supi,
+			request.Dnn,
+			request.SliceInfo,
+			smData,
+		)
 		if err != nil || response == nil || response.StatusCode != http.StatusOK {
 			problemDetail := util.GetProblemDetail("Can't find UE SM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.SMpolicylog.Warnf("can not find UE[%s] SM Policy Data in UDR", ue.Supi)

@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/5GC-DEV/config5g-cdac v0.2.1
 	github.com/5GC-DEV/event v0.0.0-20250920143456-3d7f9c51c82a
-	github.com/5GC-DEV/openapi-cdac v0.4.1
+	github.com/5GC-DEV/openapi-cdac v1.0.1-0.20260604100623-f270282ee3a4
 	github.com/antihax/optional v1.0.0
 	github.com/cydev/zero v0.0.0-20160322155811-4a4535dd56e7
 	github.com/gin-contrib/cors v1.7.5
