@@ -29,6 +29,7 @@ import (
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicylog.Infoln("handle CreateSmPolicy")
 	requestDataType := request.Body.(models.SmPolicyContextData)
+	logger.SMpolicylog.Infoln("handle CreateSmPolicy Supi[%s]", requestDataType.Supi)
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
 	if response != nil {
 		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "SUCCESS")
@@ -47,7 +48,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	header http.Header, response *models.SmPolicyDecision, problemDetails *models.ProblemDetails,
 ) {
 	var err error
-	logger.SMpolicylog.Debugln("handle Create SM Policy Request")
+	logger.SMpolicylog.Debugln("handle Create SM Policy Request Supi[%s]", request.Supi)
 
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
 		problemDetail := util.GetProblemDetail("Errorneous/Missing Mandotory IE", util.ERROR_INITIAL_PARAMETERS)
@@ -72,10 +73,14 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("can not find corresponding UDR with UE[%s]", ue.Supi)
 		return nil, nil, &problemDetail
 	}
+	logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 	var smData models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
+	logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
+	logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
+		logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 		client := util.GetNudrClient(udrUri)
 		param := Nudr_DataRepository.PolicyDataUesUeIdSmDataGetParamOpts{
 			Snssai: optional.NewInterface(util.MarshToJsonString(*request.SliceInfo)),
