@@ -2,8 +2,8 @@ github.com/5GC-DEV/config5g-cdac v0.2.1 h1:7Cqwmqh5jqeWtwYTrITflrGotglIRBIb1P3EF
 github.com/5GC-DEV/config5g-cdac v0.2.1/go.mod h1:0OEL6UoNKKlx2tlNSoKpRtzckwxR2SL+pRBDAOCT4BU=
 github.com/5GC-DEV/event v0.0.0-20250920143456-3d7f9c51c82a h1:Zql0XFQw2yfBPc7Yn51cHQO1B1h/XU7Vs9ARqOy19NA=
 github.com/5GC-DEV/event v0.0.0-20250920143456-3d7f9c51c82a/go.mod h1:1c1txRb2QALAgLrRABwrydgjR/hHq/N7m4cwhhL+ggk=
-github.com/5GC-DEV/openapi-cdac v1.0.1-0.20260604100623-f270282ee3a4 h1:Xv0TKYAszrRaBo5GXY0YlQwsSMLl/rczYLLcAtH80JM=
-github.com/5GC-DEV/openapi-cdac v1.0.1-0.20260604100623-f270282ee3a4/go.mod h1:KLX5UeLe67E9SQC/vVNArCa4KK4luoDNAS0kRGkdE74=
+github.com/5GC-DEV/openapi-cdac v1.0.1-0.20260608113850-fc77b7ccebaf h1:Tn9+8QDlQlGfz/N6QYDp9QCB1tJ+JcaGhksg/Ue/F30=
+github.com/5GC-DEV/openapi-cdac v1.0.1-0.20260608113850-fc77b7ccebaf/go.mod h1:KLX5UeLe67E9SQC/vVNArCa4KK4luoDNAS0kRGkdE74=
 github.com/antihax/optional v1.0.0 h1:xK2lYat7ZLaVVcIuj82J8kIro4V6kDe0AUDFboUCwcg=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d h1:Byv0BzEl3/e6D5CLfI0j/7hiIEtvGVFPCZ7Ei2oq8iQ=
