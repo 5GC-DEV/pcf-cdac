@@ -158,17 +158,13 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 						qosData.PriorityLevel,
 						qosData.Arp,
 					)
-
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
-
 						logger.SMpolicylog.Debugf(
 							"Matched QosData for requested 5QI[%d] with key[%s]",
 							request.SubsDefQos.Var5qi,
 							key,
 						)
-
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
-
 							logger.SMpolicylog.Debugf(
 								"Qos Data Changes:\n"+
 									"[to add:[\n"+
@@ -208,7 +204,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 				logger.SMpolicylog.Warnf("SubsDefQos is nil, skipping QosDecs filtering")
 			}
 			logger.SMpolicylog.Infof("Copied Qosid[%s]", QosDecskey)
-
 			var refTcKey string
 			for key, pccRule := range PccPolicy.PccRules {
 				logger.SMpolicylog.Infof("Original PccRule[%s]: %+v", key, pccRule)

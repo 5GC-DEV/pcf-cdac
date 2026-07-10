@@ -785,12 +785,10 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
 	logger.GrpcLog.Infof("Added new SessionRule [%s] for DNN: %s in Slice: %s, IMSI: %s", sessionrule.SessRuleId, dnn, sliceid, imsi)
-
 	// Get the PCC rules for the slice and session rule
 	pccPolicy := getPccRules(slice, sessionrule)
 	// Debug generated QoS data before storing
 	for key, qosData := range pccPolicy.QosDecs {
-
 		logger.GrpcLog.Debugf(
 			"[BEFORE STORE] Generated QosDecs Key[%s] -> "+
 				"Pointer[%p], "+
@@ -814,18 +812,10 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 			qosData.Arp,
 		)
 	}
-
-	// Store the retrieved PCC rules
-	/*for index, element := range pccPolicy.PccRules {
-		policyData.PccPolicy[sliceid].PccRules[index] = element
-	}*/
 	// Store PCC Rules using deep copy
 	for index, element := range pccPolicy.PccRules {
-
 		if copiedPccRule, ok := deepcopy.Copy(element).(*models.PccRule); ok {
-
 			policyData.PccPolicy[sliceid].PccRules[index] = copiedPccRule
-
 			logger.GrpcLog.Debugf(
 				"[STORE] PccRule[%s] stored successfully Pointer[%p]",
 				index,
@@ -835,16 +825,10 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 			logger.GrpcLog.Warnf("Failed to deepcopy PccRule[%s]", index)
 		}
 	}
-	/*for index, element := range pccPolicy.QosDecs {
-		policyData.PccPolicy[sliceid].QosDecs[index] = element
-	}*/
 	// Store QosDecs using deep copy
 	for index, element := range pccPolicy.QosDecs {
-
 		if copiedQosData, ok := deepcopy.Copy(element).(*models.QosData); ok {
-
 			policyData.PccPolicy[sliceid].QosDecs[index] = copiedQosData
-
 			logger.GrpcLog.Debugf(
 				"[STORE] QosDecs[%s] -> "+
 					"Pointer[%p], "+
@@ -871,7 +855,6 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	}
 	// Final verification after storing
 	for key, qosData := range policyData.PccPolicy[sliceid].QosDecs {
-
 		logger.GrpcLog.Debugf(
 			"[AFTER STORE] Final QosDecs Key[%s] -> "+
 				"Pointer[%p], "+
