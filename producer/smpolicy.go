@@ -145,8 +145,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 			var QosDecskey string
 			if request.SubsDefQos != nil { // Ensure request.SubsDefQos is not nil
 				for key, qosData := range PccPolicy.QosDecs {
-
-					logger.SMpolicylog.Infof(
+					logger.SMpolicylog.Debugf(
 						"Evaluating QosData key[%s] -> QosId[%s], Var5QI[%d], MaxBrUl[%s], MaxBrDl[%s], "+
 							"GBrUl[%s], GBrDl[%s], PriorityLevel[%d], ARP[%+v]",
 						key,
@@ -162,7 +161,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 
 					if qosData.Var5qi == request.SubsDefQos.Var5qi {
 
-						logger.SMpolicylog.Infof(
+						logger.SMpolicylog.Debugf(
 							"Matched QosData for requested 5QI[%d] with key[%s]",
 							request.SubsDefQos.Var5qi,
 							key,
@@ -170,7 +169,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 
 						if copiedQosData, ok := deepcopy.Copy(qosData).(*models.QosData); ok {
 
-							logger.SMpolicylog.Infof(
+							logger.SMpolicylog.Debugf(
 								"Qos Data Changes:\n"+
 									"[to add:[\n"+
 									"[name:[%s], QosData:["+
@@ -195,7 +194,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 							decision.QosDecs[key] = copiedQosData
 							QosDecskey = key
 
-							logger.SMpolicylog.Infof(
+							logger.SMpolicylog.Debugf(
 								"Copied QosData key[%s] successfully into SM Policy Decision",
 								key,
 							)

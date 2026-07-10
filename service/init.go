@@ -617,11 +617,6 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_PREEMPTABLE
 				}
 			}
-			/*if pccrule.Qos.MaxbrUl == 0 && pccrule.Qos.MaxbrDl == 0 && pccrule.Qos.GbrUl == 0 && pccrule.Qos.GbrDl == 0 {
-				// getting from sessionrule
-				qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
-				qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
-			}*/
 			if pccrule.Qos.MaxbrUl == 0 &&
 				pccrule.Qos.MaxbrDl == 0 &&
 				pccrule.Qos.GbrUl == 0 &&
@@ -631,7 +626,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 				if sessionRule.AuthDefQos != nil &&
 					qos.Var5qi == sessionRule.AuthDefQos.Var5qi {
 
-					logger.GrpcLog.Infof(
+					logger.GrpcLog.Debugf(
 						"Applying SessionRule AMBR to matching QosData "+
 							"5QI[%d], UL[%s], DL[%s]",
 						qos.Var5qi,
@@ -644,7 +639,7 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 
 				} else {
 
-					logger.GrpcLog.Infof(
+					logger.GrpcLog.Debugf(
 						"Skipping SessionRule AMBR assignment for QosData 5QI[%d], "+
 							"SessionRule5QI[%d]",
 						qos.Var5qi,
@@ -796,7 +791,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	// Debug generated QoS data before storing
 	for key, qosData := range pccPolicy.QosDecs {
 
-		logger.GrpcLog.Infof(
+		logger.GrpcLog.Debugf(
 			"[BEFORE STORE] Generated QosDecs Key[%s] -> "+
 				"Pointer[%p], "+
 				"QosId[%s], "+
@@ -831,7 +826,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 
 			policyData.PccPolicy[sliceid].PccRules[index] = copiedPccRule
 
-			logger.GrpcLog.Infof(
+			logger.GrpcLog.Debugf(
 				"[STORE] PccRule[%s] stored successfully Pointer[%p]",
 				index,
 				copiedPccRule,
@@ -850,7 +845,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 
 			policyData.PccPolicy[sliceid].QosDecs[index] = copiedQosData
 
-			logger.GrpcLog.Infof(
+			logger.GrpcLog.Debugf(
 				"[STORE] QosDecs[%s] -> "+
 					"Pointer[%p], "+
 					"QosId[%s], "+
@@ -877,7 +872,7 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	// Final verification after storing
 	for key, qosData := range policyData.PccPolicy[sliceid].QosDecs {
 
-		logger.GrpcLog.Infof(
+		logger.GrpcLog.Debugf(
 			"[AFTER STORE] Final QosDecs Key[%s] -> "+
 				"Pointer[%p], "+
 				"QosId[%s], "+
