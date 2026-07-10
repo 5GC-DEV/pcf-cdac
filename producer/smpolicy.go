@@ -194,7 +194,6 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 								"Copied QosData key[%s] successfully into SM Policy Decision",
 								key,
 							)
-
 						} else {
 							logger.SMpolicylog.Warnf("Failed to copy QosData for key: %s", key)
 						}

@@ -621,11 +621,9 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 				pccrule.Qos.MaxbrDl == 0 &&
 				pccrule.Qos.GbrUl == 0 &&
 				pccrule.Qos.GbrDl == 0 {
-
 				// Apply Session AMBR only for matching 5QI
 				if sessionRule.AuthDefQos != nil &&
 					qos.Var5qi == sessionRule.AuthDefQos.Var5qi {
-
 					logger.GrpcLog.Debugf(
 						"Applying SessionRule AMBR to matching QosData "+
 							"5QI[%d], UL[%s], DL[%s]",
@@ -633,12 +631,9 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 						sessionRule.AuthSessAmbr.Uplink,
 						sessionRule.AuthSessAmbr.Downlink,
 					)
-
 					qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
 					qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
-
 				} else {
-
 					logger.GrpcLog.Debugf(
 						"Skipping SessionRule AMBR assignment for QosData 5QI[%d], "+
 							"SessionRule5QI[%d]",
@@ -845,7 +840,6 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 				copiedQosData.MaxbrDl,
 				copiedQosData.Arp,
 			)
-
 		} else {
 			logger.GrpcLog.Warnf("Failed to deepcopy QosDecs[%s]", index)
 		}
@@ -889,13 +883,11 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	switch slice.OperationType {
 	case protos.OpType_SLICE_ADD:
 		logger.GrpcLog.Infoln("Received Slice with OperationType: Add from ConfigPod")
-
 		for _, devgroup := range slice.DeviceGroup {
 			if len(devgroup.IpDomainDetails) == 0 {
 				logger.GrpcLog.Warnf("No IP domain details for device group: %v", devgroup.Name)
 				continue
 			}
-
 			// Get session rules for all DNNs in this device group
 			sessionRules := getSessionRules(devgroup)
 
@@ -904,16 +896,13 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 					logger.GrpcLog.Warnf("IP details or QoS details not available in IP domain for device group: %v", devgroup.Name)
 					continue
 				}
-
 				dnn := ipDomain.DnnName
-
 				// Extract the specific session rule for this DNN
 				sessionrule, exists := sessionRules[dnn]
 				if !exists {
 					logger.GrpcLog.Warnf("No session rule found for DNN: %v in device group: %v", dnn, devgroup.Name)
 					continue
 				}
-
 				for _, imsi := range devgroup.Imsi {
 					logger.GrpcLog.Infof("IMSI: %v sliceid: %v DNN: %v Sessionrule: %v slice: %v", imsi, sliceid, dnn, sessionrule, slice)
 					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
