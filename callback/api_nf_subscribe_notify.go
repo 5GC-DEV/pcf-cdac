@@ -13,6 +13,11 @@ import (
 	"github.com/5GC-DEV/openapi-cdac"
 	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/gin-gonic/gin"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/openapi/v2/utils"
+	"github.com/omec-project/pcf/consumer"
+	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/util/httpwrapper"
@@ -24,24 +29,15 @@ func HTTPNfSubscriptionStatusNotify(c *gin.Context) {
 	requestBody, err := c.GetRawData()
 	if err != nil {
 		logger.CallbackLog.Errorf("get Request Body error: %+v", err)
-		problemDetail := models.ProblemDetails{
-			Title:  "System failure",
-			Status: http.StatusInternalServerError,
-			Detail: err.Error(),
-			Cause:  "SYSTEM_FAILURE",
-		}
+		problemDetail := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetail)
 		return
 	}
 
-	err = openapi.Deserialize(&nfSubscriptionStatusNotification, requestBody, "application/json")
+	err = openapi.Decode(&nfSubscriptionStatusNotification, requestBody, "application/json")
 	if err != nil {
 		problemDetail := "[Request Body] " + err.Error()
-		rsp := models.ProblemDetails{
-			Title:  "Malformed request syntax",
-			Status: http.StatusBadRequest,
-			Detail: problemDetail,
-		}
+		rsp := utils.ProblemDetailsMalformedRequestSyntax(problemDetail)
 		logger.CallbackLog.Errorln(problemDetail)
 		c.JSON(http.StatusBadRequest, rsp)
 		return
@@ -51,16 +47,33 @@ func HTTPNfSubscriptionStatusNotify(c *gin.Context) {
 
 	rsp := producer.HandleNfSubscriptionStatusNotify(req)
 
-	responseBody, err := openapi.Serialize(rsp.Body, "application/json")
+	responseBody, err := openapi.SetBody(rsp.Body, "application/json")
 	if err != nil {
 		logger.CallbackLog.Errorln(err)
-		problemDetails := models.ProblemDetails{
-			Status: http.StatusInternalServerError,
-			Cause:  "SYSTEM_FAILURE",
-			Detail: err.Error(),
-		}
+		problemDetails := utils.ProblemDetailsSystemFailure(err.Error())
 		c.JSON(http.StatusInternalServerError, problemDetails)
 	} else if rsp.Body != nil {
-		c.Data(rsp.Status, "application/json", responseBody)
+		c.Data(rsp.Status, "application/json", responseBody.Bytes())
+		if nfSubscriptionStatusNotification.Event != models.NOTIFICATIONEVENTTYPE_NF_DEREGISTERED {
+			return
+		}
+		nfID := nfSubscriptionStatusNotification.NfProfile.GetNfInstanceId()
+		pcfSelf := pcfContext.PCF_Self()
+		value, found := pcfSelf.NfStatusSubscriptions.Load(nfID)
+		if !found {
+			logger.ConsumerLog.Warnf("no subscriptionId found for NF instance %s", nfID)
+			return
+		}
+		subID := value.(string)
+		problem, err := consumer.SendRemoveSubscription(subID)
+		if err != nil {
+			logger.ConsumerLog.Errorf("failed to remove NRF subscription %s: %+v", subID, err)
+			return
+		}
+		if problem != nil {
+			logger.ConsumerLog.Warnf("NRF responded with problem while removing %s: %+v", subID, problem)
+			return
+		}
+		pcfSelf.NfStatusSubscriptions.Delete(nfID)
 	}
 }

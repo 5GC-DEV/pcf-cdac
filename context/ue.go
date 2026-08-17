@@ -11,8 +11,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/util/idgenerator"
 )
@@ -20,7 +21,8 @@ import (
 // key is supi
 type UeContext struct {
 	// Udr Ref
-	UdrUri string
+	UdrUri   string
+	UdrUriMu sync.RWMutex
 	// SMPolicy
 	SmPolicyData map[string]*UeSmPolicyData // use smPolicyId(ue.Supi-pduSessionId) as key
 	// App Session Related
@@ -47,7 +49,7 @@ type UeAMPolicyData struct {
 	PolAssoId         string
 	AccessType        models.AccessType
 	NotificationUri   string
-	ServingPlmn       *models.NetworkId
+	ServingPlmn       models.PlmnIdNid
 	AltNotifIpv4Addrs []string
 	AltNotifIpv6Addrs []string
 	// TODO: AMF Status Change
@@ -103,22 +105,22 @@ type UeSmPolicyData struct {
 
 // NewUeAMPolicyData returns created UeAMPolicyData data and insert this data to Ue.AMPolicyData with assolId as key
 func (ue *UeContext) NewUeAMPolicyData(assolId string, req models.PolicyAssociationRequest) *UeAMPolicyData {
-	ue.Gpsi = req.Gpsi
-	ue.Pei = req.Pei
-	ue.GroupIds = req.GroupIds
+	ue.Gpsi = req.GetGpsi()
+	ue.Pei = req.GetPei()
+	ue.GroupIds = req.GetGroupIds()
 	ue.AMPolicyData[assolId] = &UeAMPolicyData{
 		PolAssoId:         assolId,
 		ServAreaRes:       req.ServAreaRes,
-		AltNotifIpv4Addrs: req.AltNotifIpv4Addrs,
-		AltNotifIpv6Addrs: req.AltNotifIpv6Addrs,
-		AccessType:        req.AccessType,
-		NotificationUri:   req.NotificationUri,
-		ServingPlmn:       req.ServingPlmn,
-		TimeZone:          req.TimeZone,
-		Rfsp:              req.Rfsp,
+		AltNotifIpv4Addrs: req.GetAltNotifIpv4Addrs(),
+		AltNotifIpv6Addrs: req.GetAltNotifIpv6Addrs(),
+		AccessType:        req.GetAccessType(),
+		NotificationUri:   req.GetNotificationUri(),
+		ServingPlmn:       req.GetServingPlmn(),
+		TimeZone:          req.GetTimeZone(),
+		Rfsp:              req.GetRfsp(),
 		Guami:             req.Guami,
 		UserLoc:           req.UserLoc,
-		ServiveName:       req.ServiveName,
+		ServiveName:       string(req.GetServiveName()),
 		PcfUe:             ue,
 	}
 	ue.AMPolicyData[assolId].Pras = make(map[string]models.PresenceInfo)
@@ -168,40 +170,40 @@ func (ue *UeContext) NewUeSmPolicyData(
 func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec *models.SmPolicyDecision) error {
 	decision := policy.PolicyDecision
 	if decision == nil {
-		return fmt.Errorf("can't find the Policy Decision")
+		return fmt.Errorf("can not find the Policy Decision")
 	}
 	if rule, exist := decision.PccRules[pccRuleId]; exist {
 		if deletedSmPolicyDec != nil {
 			if deletedSmPolicyDec.PccRules == nil {
-				deletedSmPolicyDec.PccRules = make(map[string]*models.PccRule)
+				deletedSmPolicyDec.PccRules = make(map[string]models.PccRule)
 			}
-			deletedSmPolicyDec.PccRules[pccRuleId] = nil
+			deletedSmPolicyDec.PccRules[pccRuleId] = models.PccRule{}
 		}
 		for _, info := range rule.FlowInfos {
-			delete(policy.PackFiltMapToPccRuleId, info.PackFiltId)
+			delete(policy.PackFiltMapToPccRuleId, info.GetPackFiltId())
 		}
 		for _, id := range rule.RefQosData {
 			if decision.QosDecs != nil {
 				policy.IncreaseRemainGBR(id)
-				delete(decision.QosDecs, id)
-				if len(decision.QosDecs) == 0 {
+				delete(decision.GetQosDecs(), id)
+				if len(decision.GetQosDecs()) == 0 {
 					decision.QosDecs = nil
 				}
 			} else {
 				break
 			}
 		}
-		if rule.RefCondData != "" {
+		if rule.GetRefCondData() != "" {
 			if decision.Conds != nil {
-				delete(decision.Conds, rule.RefCondData)
+				delete(decision.Conds, rule.GetRefCondData())
 				if len(decision.Conds) == 0 {
 					decision.Conds = nil
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.Conds == nil {
-						deletedSmPolicyDec.Conds = make(map[string]*models.ConditionData)
+						deletedSmPolicyDec.Conds = make(map[string]models.ConditionData)
 					}
-					deletedSmPolicyDec.Conds[rule.RefCondData] = nil
+					deletedSmPolicyDec.Conds[rule.GetRefCondData()] = models.ConditionData{}
 				}
 			}
 		}
@@ -213,9 +215,9 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.ChgDecs == nil {
-						deletedSmPolicyDec.ChgDecs = make(map[string]*models.ChargingData)
+						deletedSmPolicyDec.ChgDecs = make(map[string]models.ChargingData)
 					}
-					deletedSmPolicyDec.ChgDecs[id] = nil
+					deletedSmPolicyDec.ChgDecs[id] = models.ChargingData{}
 				}
 			} else {
 				break
@@ -223,15 +225,17 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 		}
 		for _, id := range rule.RefTcData {
 			if decision.TraffContDecs != nil {
-				delete(decision.TraffContDecs, id)
-				if len(decision.TraffContDecs) == 0 {
+				delete(decision.GetTraffContDecs(), id)
+				if len(decision.GetTraffContDecs()) == 0 {
 					decision.TraffContDecs = nil
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.TraffContDecs == nil {
-						deletedSmPolicyDec.TraffContDecs = make(map[string]*models.TrafficControlData)
+						m := make(map[string]models.TrafficControlData)
+						deletedSmPolicyDec.TraffContDecs = &m
 					}
-					deletedSmPolicyDec.TraffContDecs[id] = nil
+					traffContDecs := *deletedSmPolicyDec.TraffContDecs
+					traffContDecs[id] = models.TrafficControlData{}
 				}
 			} else {
 				break
@@ -245,9 +249,9 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 				}
 				if deletedSmPolicyDec != nil {
 					if deletedSmPolicyDec.UmDecs == nil {
-						deletedSmPolicyDec.UmDecs = make(map[string]*models.UsageMonitoringData)
+						deletedSmPolicyDec.UmDecs = make(map[string]models.UsageMonitoringData)
 					}
-					deletedSmPolicyDec.UmDecs[id] = nil
+					deletedSmPolicyDec.UmDecs[id] = models.UsageMonitoringData{}
 				}
 			} else {
 				break
@@ -255,13 +259,13 @@ func (policy *UeSmPolicyData) RemovePccRule(pccRuleId string, deletedSmPolicyDec
 		}
 		delete(decision.PccRules, pccRuleId)
 	} else {
-		return fmt.Errorf("can't find the pccRuleId[%s] in Session[%d]", pccRuleId, policy.PolicyContext.PduSessionId)
+		return fmt.Errorf("can not find the pccRuleId[%s] in Session[%d]", pccRuleId, policy.PolicyContext.PduSessionId)
 	}
 	return nil
 }
 
 // Check if the afEvent exists in smPolicy
-func (policy *UeSmPolicyData) CheckRelatedAfEvent(event models.AfEvent) (found bool) {
+func (policy *UeSmPolicyData) CheckRelatedAfEvent(event models.AfEventPcf) (found bool) {
 	for appSessionId := range policy.AppSessions {
 		if val, ok := PCF_Self().AppSessionPool.Load(appSessionId); ok {
 			appSession := val.(*AppSessionData)
@@ -279,20 +283,20 @@ func (policy *UeSmPolicyData) CheckRelatedAfEvent(event models.AfEvent) (found b
 func (policy *UeSmPolicyData) ArrangeExistEventSubscription() (changed bool) {
 	triggers := []models.PolicyControlRequestTrigger{}
 	for _, trigger := range policy.PolicyDecision.PolicyCtrlReqTriggers {
-		var afEvent models.AfEvent
+		var afEvent models.AfEventPcf
 		switch trigger {
-		case models.PolicyControlRequestTrigger_PLMN_CH: // PLMN Change
-			afEvent = models.AfEvent_PLMN_CHG
-		case models.PolicyControlRequestTrigger_QOS_NOTIF:
+		case models.POLICYCONTROLREQUESTTRIGGER_PLMN_CH: // PLMN Change
+			afEvent = models.AFEVENTPCF_PLMN_CHG
+		case models.POLICYCONTROLREQUESTTRIGGER_QOS_NOTIF:
 			// SMF notify PCF when receiving from RAN that QoS can/can't be guaranteed (subsclause 4.2.4.20 in TS29512) (always)
-			afEvent = models.AfEvent_QOS_NOTIF
-		case models.PolicyControlRequestTrigger_SUCC_RES_ALLO:
+			afEvent = models.AFEVENTPCF_QOS_NOTIF
+		case models.POLICYCONTROLREQUESTTRIGGER_SUCC_RES_ALLO:
 			// Successful resource allocation (subsclause 4.2.6.5.5, 4.2.4.14 in TS29512)
-			afEvent = models.AfEvent_SUCCESSFUL_RESOURCES_ALLOCATION
-		case models.PolicyControlRequestTrigger_AC_TY_CH: // Change of RatType
-			afEvent = models.AfEvent_ACCESS_TYPE_CHANGE
-		case models.PolicyControlRequestTrigger_US_RE: // UMC
-			afEvent = models.AfEvent_USAGE_REPORT
+			afEvent = models.AFEVENTPCF_SUCCESSFUL_RESOURCES_ALLOCATION
+		case models.POLICYCONTROLREQUESTTRIGGER_AC_TY_CH: // Change of RatType
+			afEvent = models.AFEVENTPCF_ACCESS_TYPE_CHANGE
+		case models.POLICYCONTROLREQUESTTRIGGER_US_RE: // UMC
+			afEvent = models.AFEVENTPCF_USAGE_REPORT
 		}
 		if afEvent != "" && !policy.CheckRelatedAfEvent(afEvent) {
 			changed = true
@@ -310,11 +314,14 @@ func (policy *UeSmPolicyData) IncreaseRemainGBR(qosId string) (origUl, origDl *f
 	if decision == nil {
 		return
 	}
-	if qos, exist := decision.QosDecs[qosId]; exist {
-		if qos.Var5qi <= 4 {
+	if decision.QosDecs == nil {
+		return
+	}
+	if qos, exist := (*decision.QosDecs)[qosId]; exist {
+		if qos.GetVar5qi() <= 4 {
 			// Add GBR
-			origUl = IncreaseRamainBitRate(policy.RemainGbrUL, qos.GbrUl)
-			origDl = IncreaseRamainBitRate(policy.RemainGbrDL, qos.GbrDl)
+			origUl = IncreaseRamainBitRate(policy.RemainGbrUL, qos.GetGbrUl())
+			origDl = IncreaseRamainBitRate(policy.RemainGbrDL, qos.GetGbrDl())
 		}
 	}
 	return
@@ -339,16 +346,16 @@ func (policy *UeSmPolicyData) DecreaseRemainGBR(req *models.RequestedQos) (gbrDl
 		return "", "", nil
 	}
 	if req.Var5qi <= 4 {
-		err = DecreaseRamainBitRate(policy.RemainGbrDL, req.GbrDl)
+		err = DecreaseRamainBitRate(policy.RemainGbrDL, req.GetGbrDl())
 		if err != nil {
 			return
 		}
-		gbrDl = req.GbrDl
-		err = DecreaseRamainBitRate(policy.RemainGbrUL, req.GbrUl)
+		gbrDl = req.GetGbrDl()
+		err = DecreaseRamainBitRate(policy.RemainGbrUL, req.GetGbrUl())
 		if err != nil {
 			return
 		}
-		gbrUl = req.GbrUl
+		gbrUl = req.GetGbrUl()
 	}
 	return
 }
@@ -381,12 +388,12 @@ func DecreaseRamainBitRateToZero(remainBitRate *float64) string {
 }
 
 // returns AM Policy which AccessType and plmnId match
-func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.NetworkId) *UeAMPolicyData {
+func (ue *UeContext) FindAMPolicy(anType models.AccessType, plmnId *models.PlmnIdNid) *UeAMPolicyData {
 	if ue == nil || plmnId == nil {
 		return nil
 	}
 	for _, amPolicy := range ue.AMPolicyData {
-		if amPolicy.AccessType == anType && reflect.DeepEqual(*amPolicy.ServingPlmn, *plmnId) {
+		if amPolicy.AccessType == anType && reflect.DeepEqual(amPolicy.ServingPlmn, *plmnId) {
 			return amPolicy
 		}
 	}
@@ -398,7 +405,7 @@ func (ue *UeContext) AllocUeAppSessionId(context *PCFContext) string {
 	var allocID int64
 	var err error
 	if allocID, err = ue.AppSessionIDGenerator.Allocate(); err != nil {
-		logger.CtxLog.Warnf("Allocate AppSessionId error: %+v", err)
+		logger.CtxLog.Warnf("allocate AppSessionId error: %+v", err)
 		return ""
 	}
 	appSessionID := fmt.Sprintf("%s-%d", ue.Supi, allocID)
@@ -408,7 +415,7 @@ func (ue *UeContext) AllocUeAppSessionId(context *PCFContext) string {
 // returns SM Policy by IPv4
 func (ue *UeContext) SMPolicyFindByIpv4(v4 string) *UeSmPolicyData {
 	for _, smPolicy := range ue.SmPolicyData {
-		if smPolicy.PolicyContext.Ipv4Address == v4 {
+		if smPolicy.PolicyContext.GetIpv4Address() == v4 {
 			return smPolicy
 		}
 	}
@@ -418,7 +425,7 @@ func (ue *UeContext) SMPolicyFindByIpv4(v4 string) *UeSmPolicyData {
 // returns SM Policy by IPv6
 func (ue *UeContext) SMPolicyFindByIpv6(v6 string) *UeSmPolicyData {
 	for _, smPolicy := range ue.SmPolicyData {
-		if smPolicy.PolicyContext.Ipv6AddressPrefix == v6 {
+		if smPolicy.PolicyContext.GetIpv6AddressPrefix() == v6 {
 			return smPolicy
 		}
 	}
@@ -431,22 +438,25 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 ) *UeSmPolicyData {
 	for id, smPolicy := range ue.SmPolicyData {
 		policyContext := smPolicy.PolicyContext
-
-		if policyContext.Ipv4Address == v4 {
-			if dnn != "" && policyContext.Dnn != dnn {
-				continue
-			}
-			if ipDomain != "" && policyContext.IpDomain != "" && policyContext.IpDomain != ipDomain {
-				continue
-			}
-			if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
-				continue
-			}
+		if policyContext.GetIpv4Address() != v4 {
+			continue
 		}
-		logger.CtxLog.Infof("SMPolicy[%s] matched for IPv4: %s", id, v4)
+		if dnn != "" && policyContext.GetDnn() != dnn {
+			continue
+		}
+		if ipDomain != "" && policyContext.GetIpDomain() != "" && policyContext.GetIpDomain() != ipDomain {
+			continue
+		}
+		if sNssai != nil && !reflect.DeepEqual(sNssai, policyContext.SliceInfo) {
+			continue
+		}
+
+		logger.CtxLog.Debugf("smPolicy[%s] matched for IPv4: %s", id, v4)
 		return smPolicy
 	}
-	logger.CtxLog.Infof("No matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
+
+	logger.CtxLog.Debugf(
+		"no matching SMPolicy found for IPv4: %s, DNN: %s, IPDomain: %s, S-NSSAI: %+v",
 		v4, dnn, ipDomain, sNssai)
 	return nil
 }
@@ -455,7 +465,7 @@ func (ue *UeContext) SMPolicyFindByIdentifiersIpv4(
 func (ue *UeContext) SMPolicyFindByIdentifiersIpv6(v6 string, sNssai *models.Snssai, dnn string) *UeSmPolicyData {
 	for _, smPolicy := range ue.SmPolicyData {
 		policyContext := smPolicy.PolicyContext
-		if policyContext.Ipv6AddressPrefix == v6 {
+		if policyContext.GetIpv6AddressPrefix() == v6 {
 			if dnn != "" && policyContext.Dnn != dnn {
 				continue
 			}

@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/5GC-DEV/openapi-cdac"
-	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/Namf_Communication"
+	"github.com/omec-project/openapi/v2/models"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/pcf/util"
 )
 
 func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
@@ -23,14 +23,22 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 ) {
 	logger.Consumerlog.Debugf("PCF Subscribe to AMF status[%+v]", amfUri)
 	pcfSelf := pcf_context.PCF_Self()
-	client := util.GetNamfClient(amfUri)
+	configuration := Namf_Communication.NewConfiguration()
+	serverConfig := &configuration.Servers[0]
+	if apiRootVar, exists := serverConfig.Variables["apiRoot"]; exists {
+		apiRootVar.DefaultValue = amfUri
+		serverConfig.Variables["apiRoot"] = apiRootVar
+	}
+	client := Namf_Communication.NewAPIClient(configuration)
 
-	subscriptionData := models.SubscriptionData{
+	subscriptionDataAmf := models.SubscriptionDataAmf{
 		AmfStatusUri: fmt.Sprintf("%s/npcf-callback/v1/amfstatus", pcfSelf.GetIPv4Uri()),
 		GuamiList:    guamiList,
 	}
 
-	res, httpResp, localErr := client.SubscriptionsCollectionDocumentApi.AMFStatusChangeSubscribe(context.Background(), subscriptionData)
+	apiAMFStatusChangeSubscribeRequest := client.SubscriptionsCollectionCollectionAPI.AMFStatusChangeSubscribe(context.Background())
+	apiAMFStatusChangeSubscribeRequest = apiAMFStatusChangeSubscribeRequest.SubscriptionDataAmf(subscriptionDataAmf)
+	res, httpResp, localErr := client.SubscriptionsCollectionCollectionAPI.AMFStatusChangeSubscribeExecute(apiAMFStatusChangeSubscribeRequest)
 	if localErr == nil {
 		locationHeader := httpResp.Header.Get("Location")
 		logger.Consumerlog.Debugf("location header: %+v", locationHeader)
@@ -54,8 +62,12 @@ func AmfStatusChangeSubscribe(amfUri string, guamiList []models.Guami) (
 	}
 
 	defer func() {
-		if err = httpResp.Body.Close(); err != nil {
-			logger.Consumerlog.Errorf("error closing response body: %v", err)
+		// httpResp can be nil in some error scenarios above; this check prevents a
+		// panic when accessing httpResp.Body
+		if httpResp != nil {
+			if err = httpResp.Body.Close(); err != nil {
+				logger.Consumerlog.Errorf("error closing response body: %v", err)
+			}
 		}
 	}()
 

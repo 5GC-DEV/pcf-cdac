@@ -7,130 +7,95 @@ package util
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/models"
 	"github.com/omec-project/pcf/logger"
 )
 
 var MediaTypeTo5qiMap = map[models.MediaType]int32{
-	models.MediaType_AUDIO:       1,
-	models.MediaType_VIDEO:       2,
-	models.MediaType_APPLICATION: 2,
-	models.MediaType_DATA:        9,
-	models.MediaType_CONTROL:     9,
-	models.MediaType_TEXT:        9,
-	models.MediaType_MESSAGE:     9,
-	models.MediaType_OTHER:       9,
+	models.MEDIATYPE_AUDIO:       1,
+	models.MEDIATYPE_VIDEO:       2,
+	models.MEDIATYPE_APPLICATION: 2,
+	models.MEDIATYPE_DATA:        9,
+	models.MEDIATYPE_CONTROL:     9,
+	models.MEDIATYPE_TEXT:        9,
+	models.MEDIATYPE_MESSAGE:     9,
+	models.MEDIATYPE_OTHER:       9,
 }
 
-// Create default pcc rule in PCF,
-// TODO: use config file to pass default pcc rule
-func CreateDefalutPccRules(id int32) *models.PccRule {
-	flowInfo := []models.FlowInformation{
-		{
-			FlowDescription:   "permit out ip from any to assigned",
-			FlowDirection:     models.FlowDirectionRm_DOWNLINK,
-			PacketFilterUsage: true,
-			PackFiltId:        "PackFiltId-0",
-		},
-		{
-			FlowDescription:   "permit out ip from any to assigned",
-			FlowDirection:     models.FlowDirectionRm_DOWNLINK,
-			PacketFilterUsage: true,
-			PackFiltId:        "PackFiltId-1",
-		},
-	}
-	return CreatePccRule(id, 10, flowInfo, "")
-}
-
-// Get pcc rule Identity(PccRuleId-%d)
+// GetPccRuleId returns the PCC Rule ID as a plain numeric string.
 func GetPccRuleId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// Get qos Identity(QosId-%d)
+// GetQosId returns the QoS ID as a plain numeric string.
 func GetQosId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// Get Cond Identity(CondId-%d)
-func GetCondId(id int32) string {
-	return fmt.Sprintf("CondId-%d", id)
-}
-
-// Get Traffic Control Identity(TcId-%d)
+// GetTcId returns the Traffic Control ID as a plain numeric string.
 func GetTcId(id int32) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// Get Charging Identity(ChgId-%d)
+// GetChgId returns the Charging ID in the format "ChgId-<id>".
 func GetChgId(id int32) string {
 	return fmt.Sprintf("ChgId-%d", id)
 }
 
-// Get Charging Identity(ChgId-%d)
-func GetUmId(sponId, aspId string) string {
-	return fmt.Sprintf("umId-%s-%s", sponId, aspId)
+// GetUmId returns the Usage Monitoring ID for sponsored connectivity.
+// Format: "umId-<aspId>-<sponId>".
+func GetUmId(aspId, sponId string) string {
+	return fmt.Sprintf("umId-%s-%s", aspId, sponId)
 }
 
-// Get Packet Filter Identity(PackFiltId-%d)
+// GetPackFiltId returns the Packet filter Id as a plain numeric string.
 func GetPackFiltId(id int32) string {
-	// return fmt.Sprintf("PackFiltId-%d", id)
 	return fmt.Sprintf("%d", id)
 }
 
-// Create Pcc Rule with param id, precedence, flow information, appID
+// CreatePccRule with param id, precedence, flow information, appID
 func CreatePccRule(id, precedence int32, flowInfo []models.FlowInformation, appID string) *models.PccRule {
-	rule := models.PccRule{
-		AppId:      appID,
-		FlowInfos:  flowInfo,
-		PccRuleId:  GetPccRuleId(id),
-		Precedence: precedence,
-	}
-	return &rule
-}
-
-func CreateCondData(id int32) models.ConditionData {
-	activationTime := time.Now()
-	return models.ConditionData{
-		CondId:         GetCondId(id),
-		ActivationTime: &activationTime,
-	}
+	rule := models.NewPccRule(GetPccRuleId(id))
+	rule.SetAppId(appID)
+	rule.SetFlowInfos(flowInfo)
+	rule.SetPrecedence(precedence)
+	return rule
 }
 
 func CreateQosData(id, var5qi, arp int32) models.QosData {
 	qosId := GetQosId(id)
 	logger.PolicyAuthorizationlog.Debugf("Creating QosData: QosId [%s], Var5qi [%d], ARP PriorityLevel [%d]", qosId, var5qi, arp)
 	return models.QosData{
-		QosId:  qosId,
-		Var5qi: var5qi,
+		QosId:  GetQosId(id),
+		Var5qi: openapi.PtrInt32(var5qi),
 		Arp: &models.Arp{
-			PriorityLevel: arp,
+			PriorityLevel: *openapi.NewNullableInt32(openapi.PtrInt32(arp)),
 		},
 	}
 }
 
 func CreateTcData(id int32, fullID string, flowStatus models.FlowStatus) *models.TrafficControlData {
 	if flowStatus == "" {
-		flowStatus = models.FlowStatus_ENABLED
+		flowStatus = models.FLOWSTATUS_ENABLED
 	}
 	if fullID == "" {
 		fullID = GetTcId(id)
 	}
 	return &models.TrafficControlData{
 		TcId:       fullID,
-		FlowStatus: flowStatus,
+		FlowStatus: flowStatus.Ptr(),
 	}
 }
 
 func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitoringData {
 	return models.UsageMonitoringData{
 		UmId:                    umId,
-		VolumeThreshold:         thresh.TotalVolume,
-		VolumeThresholdUplink:   thresh.UplinkVolume,
-		VolumeThresholdDownlink: thresh.DownlinkVolume,
-		TimeThreshold:           thresh.Duration,
+		VolumeThreshold:         *openapi.NewNullableInt64(thresh.TotalVolume),
+		VolumeThresholdUplink:   *openapi.NewNullableInt64(thresh.UplinkVolume),
+		VolumeThresholdDownlink: *openapi.NewNullableInt64(thresh.DownlinkVolume),
+		TimeThreshold:           *openapi.NewNullableInt32(thresh.Duration),
 	}
 }
 
@@ -138,47 +103,47 @@ func CreateUmData(umId string, thresh models.UsageThreshold) models.UsageMonitor
 // EthDescription is Not Supported
 func ConvertPacketInfoToFlowInformation(infos []models.PacketFilterInfo) (flowInfos []models.FlowInformation) {
 	for _, info := range infos {
+		flowDirection, err := models.NewFlowDirectionRmFromValue(string(info.GetFlowDirection()))
+		if err != nil {
+			logger.UtilLog.Warnf("unsupported flow direction %q, defaulting to UNSPECIFIED", info.GetFlowDirection())
+			flowDirection = models.FLOWDIRECTIONRM_UNSPECIFIED.Ptr()
+		}
+
 		flowInfo := models.FlowInformation{
 			FlowDescription:   info.PackFiltCont,
 			PackFiltId:        info.PackFiltId,
-			PacketFilterUsage: true,
-			TosTrafficClass:   info.TosTrafficClass,
-			Spi:               info.Spi,
-			FlowLabel:         info.FlowLabel,
-			FlowDirection:     models.FlowDirectionRm(info.FlowDirection),
+			PacketFilterUsage: openapi.PtrBool(true),
+			TosTrafficClass:   *openapi.NewNullableString(info.TosTrafficClass),
+			Spi:               *openapi.NewNullableString(info.Spi),
+			FlowLabel:         *openapi.NewNullableString(info.FlowLabel),
+			FlowDirection:     flowDirection,
 		}
 		flowInfos = append(flowInfos, flowInfo)
 	}
-	return
+	return flowInfos
 }
 
-func GetPccRuleByAfAppId(pccRules map[string]*models.PccRule, afAppId string) *models.PccRule {
-	for _, pccRule := range pccRules {
-		if pccRule.AppId == afAppId {
-			return pccRule
+func GetPccRuleByAfAppId(pccRules map[string]models.PccRule, afAppId string) (string, models.PccRule, bool) {
+	for key, pccRule := range pccRules {
+		if pccRule.GetAppId() == afAppId {
+			return key, pccRule, true
 		}
 	}
-	return nil
+	return "", models.PccRule{}, false
 }
 
-func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []models.FlowInformation) *models.PccRule {
-	logger.PolicyAuthorizationlog.Debugf("Starting GetPccRuleByFlowInfos with %d PCC rules and %d incoming FlowInfos", len(pccRules), len(flowInfos))
+func GetPccRuleByFlowInfos(pccRules map[string]models.PccRule, flowInfos []models.FlowInformation) (string, models.PccRule, bool) {
 	found := false
 	set := make(map[string]models.FlowInformation)
 
 	for _, flowInfo := range flowInfos {
-		logger.PolicyAuthorizationlog.Debugf("Adding incoming flowInfo to set: FlowDescription=%s", flowInfo.FlowDescription)
-		set[flowInfo.FlowDescription] = flowInfo
+		set[flowInfo.GetFlowDescription()] = flowInfo
 	}
 
-	for _, pccRule := range pccRules {
-		logger.PolicyAuthorizationlog.Debugf("Checking PCC Rule ID=%s with %d FlowInfos", pccRule.PccRuleId, len(pccRule.FlowInfos))
+	for key, pccRule := range pccRules {
 		found = true
 		for _, flowInfo := range pccRule.FlowInfos {
-			if _, exists := set[flowInfo.FlowDescription]; !exists {
-				logger.PolicyAuthorizationlog.Debugf(
-					"FlowDescription=%s from PCC Rule ID=%s NOT found in incoming set — skipping this rule",
-					flowInfo.FlowDescription, pccRule.PccRuleId)
+			if _, exists := set[flowInfo.GetFlowDescription()]; !exists {
 				found = false
 				break
 			} else {
@@ -188,12 +153,10 @@ func GetPccRuleByFlowInfos(pccRules map[string]*models.PccRule, flowInfos []mode
 			}
 		}
 		if found {
-			logger.PolicyAuthorizationlog.Debugf("Match found — returning PCC Rule ID=%s", pccRule.PccRuleId)
-			return pccRule
+			return key, pccRule, true
 		}
 	}
-	logger.PolicyAuthorizationlog.Debugf("No matching PCC Rule found for given FlowInfos")
-	return nil
+	return "", models.PccRule{}, false
 }
 
 func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.PccRule,
@@ -202,36 +165,38 @@ func SetPccRuleRelatedData(decicion *models.SmPolicyDecision, pccRule *models.Pc
 ) {
 	if tcData != nil {
 		if decicion.TraffContDecs == nil {
-			decicion.TraffContDecs = make(map[string]*models.TrafficControlData)
+			traffContDecs := make(map[string]models.TrafficControlData)
+			decicion.TraffContDecs = &traffContDecs
 		}
-		decicion.TraffContDecs[tcData.TcId] = tcData
+		(*decicion.TraffContDecs)[tcData.TcId] = *tcData
 		pccRule.RefTcData = []string{tcData.TcId}
 	}
 	if qosData != nil {
 		if decicion.QosDecs == nil {
-			decicion.QosDecs = make(map[string]*models.QosData)
+			qosDecs := make(map[string]models.QosData)
+			decicion.QosDecs = &qosDecs
 		}
-		decicion.QosDecs[qosData.QosId] = qosData
+		(*decicion.QosDecs)[qosData.QosId] = *qosData
 		pccRule.RefQosData = []string{qosData.QosId}
 	}
 	if chgData != nil {
 		if decicion.ChgDecs == nil {
-			decicion.ChgDecs = make(map[string]*models.ChargingData)
+			decicion.ChgDecs = make(map[string]models.ChargingData)
 		}
-		decicion.ChgDecs[chgData.ChgId] = chgData
+		decicion.ChgDecs[chgData.ChgId] = *chgData
 		pccRule.RefChgData = []string{chgData.ChgId}
 	}
 	if umData != nil {
 		if decicion.UmDecs == nil {
-			decicion.UmDecs = make(map[string]*models.UsageMonitoringData)
+			decicion.UmDecs = make(map[string]models.UsageMonitoringData)
 		}
-		decicion.UmDecs[umData.UmId] = umData
+		decicion.UmDecs[umData.UmId] = *umData
 		pccRule.RefUmData = []string{umData.UmId}
 	}
 	if pccRule != nil {
 		if decicion.PccRules == nil {
-			decicion.PccRules = make(map[string]*models.PccRule)
+			decicion.PccRules = make(map[string]models.PccRule)
 		}
-		decicion.PccRules[pccRule.PccRuleId] = pccRule
+		decicion.PccRules[pccRule.PccRuleId] = *pccRule
 	}
 }

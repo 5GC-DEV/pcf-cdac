@@ -20,24 +20,16 @@ import (
 
 // PoliciesPolAssoIdDelete -
 func PoliciesPolAssoIdDelete(c *gin.Context) {
-	// Intentionally left empty — handler for Policy Association Delete
-	// not yet implemented; planned for a future release.
 }
 
 // PoliciesPolAssoIdGet -
 func PoliciesPolAssoIdGet(c *gin.Context) {
-	// Intentionally left empty — handler for Policy Association Get
-	// not yet implemented; planned for a future release.
 }
 
 // PoliciesPolAssoIdUpdatePost -
 func PoliciesPolAssoIdUpdatePost(c *gin.Context) {
-	// Intentionally left empty — handler for Policy Association Update
-	// not yet implemented; planned for a future release.
 }
 
 // PoliciesPost -
 func PoliciesPost(c *gin.Context) {
-	// Intentionally left empty — handler for Policy Association Create
-	// not yet implemented; planned for a future release.
 }

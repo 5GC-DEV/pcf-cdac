@@ -9,8 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/5GC-DEV/openapi-cdac/models"
-	nrfCache "github.com/5GC-DEV/openapi-cdac/nrfcache"
+	"github.com/omec-project/openapi/v2/models"
+	nrfCache "github.com/omec-project/openapi/v2/nrfcache"
+	"github.com/omec-project/openapi/v2/utils"
 	"github.com/omec-project/pcf/consumer"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
@@ -64,7 +65,7 @@ func HandleNfSubscriptionStatusNotify(request *httpwrapper.Request) *httpwrapper
 
 	problemDetails := NfSubscriptionStatusNotifyProcedure(notificationData)
 	if problemDetails != nil {
-		return httpwrapper.NewResponse(int(problemDetails.Status), nil, problemDetails)
+		return httpwrapper.NewResponse(int(problemDetails.GetStatus()), nil, problemDetails)
 	} else {
 		return httpwrapper.NewResponse(http.StatusNoContent, nil, nil)
 	}
@@ -77,11 +78,7 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 	logger.ProducerLog.Debugf("NfSubscriptionStatusNotify: %+v", notificationData)
 
 	if notificationData.Event == "" || notificationData.NfInstanceUri == "" {
-		problemDetails := &models.ProblemDetails{
-			Status: http.StatusBadRequest,
-			Cause:  "MANDATORY_IE_MISSING", // Defined in TS 29.510 6.1.6.2.17
-			Detail: "Missing IE [Event]/[NfInstanceUri] in NotificationData",
-		}
+		problemDetails := utils.ProblemDetailsMandatoryIeMissing("Missing IE [Event]/[NfInstanceUri] in NotificationData")
 		return problemDetails
 	}
 	nfInstanceId := notificationData.NfInstanceUri[strings.LastIndex(notificationData.NfInstanceUri, "/")+1:]
@@ -89,7 +86,7 @@ func NfSubscriptionStatusNotifyProcedure(notificationData models.NotificationDat
 	logger.ProducerLog.Infof("Received Subscription Status Notification from NRF: %v", notificationData.Event)
 	// If nrf caching is enabled, go ahead and delete the entry from the cache.
 	// This will force the PCF to do nf discovery and get the updated nf profile from the NRF.
-	if notificationData.Event == models.NotificationEventType_DEREGISTERED {
+	if notificationData.Event == models.NOTIFICATIONEVENTTYPE_NF_DEREGISTERED {
 		if pcfContext.PCF_Self().EnableNrfCaching {
 			ok := NRFCacheRemoveNfProfileFromNrfCache(nfInstanceId)
 			logger.ProducerLog.Debugf("nfinstance %v deleted from cache: %v", nfInstanceId, ok)

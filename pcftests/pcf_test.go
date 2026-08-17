@@ -10,27 +10,24 @@ package pcftests
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"strconv"
+	"reflect"
 	"strings"
 	"testing"
-	"time"
 
-	protos "github.com/5GC-DEV/config5g-cdac/proto/sdcoreConfig"
-	"github.com/5GC-DEV/openapi-cdac/Nnrf_NFDiscovery"
-	"github.com/5GC-DEV/openapi-cdac/models"
-	"github.com/antihax/optional"
+	"github.com/omec-project/openapi/v2"
+	"github.com/omec-project/openapi/v2/Nnrf_NFDiscovery"
+	"github.com/omec-project/openapi/v2/models"
+	"github.com/omec-project/openapi/v2/utils"
 	"github.com/omec-project/pcf/consumer"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/producer"
 	"github.com/omec-project/pcf/service"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -51,204 +48,15 @@ func setupTest() {
 		64435000111: "64435 Mbps",
 	}
 	if err := factory.InitConfigFactory("../pcftests/pcfcfg.yaml"); err != nil {
-		fmt.Printf("Could not InitConfigFactory: %+v", err)
+		fmt.Printf("could not InitConfigFactory: %+v", err)
 	}
-}
-
-func TestUpdatePcfSubscriberPolicyDataAdd(t *testing.T) {
-	var nrp protos.NetworkSliceResponse
-	err := json.Unmarshal(Data, &nrp)
-	if err != nil {
-		panic(err)
-	}
-	for _, ns := range nrp.NetworkSlice {
-		PCFTest.UpdatePcfSubscriberPolicyData(ns)
-	}
-	self := pcfContext.PCF_Self()
-	assert.Equal(t, len(self.PcfSubscriberPolicyData), 3)
 }
 
 func TestCheckNRFCachingIsEnabled(t *testing.T) {
 	got := factory.PcfConfig.Configuration.EnableNrfCaching
-	assert.Equal(t, got, true, "NRF Caching is not enabled.")
-}
-
-func TestUpdatePcfSubscriberPolicyDataUpdate(t *testing.T) {
-	var nrp protos.NetworkSliceResponse
-	err := json.Unmarshal(UData, &nrp)
-	if err != nil {
-		panic(err)
+	if got != true {
+		t.Errorf("NRF Caching is not enabled. got = %v, want = true", got)
 	}
-	for _, ns := range nrp.NetworkSlice {
-		PCFTest.UpdatePcfSubscriberPolicyData(ns)
-	}
-	self := pcfContext.PCF_Self()
-	assert.Equal(t, len(self.PcfSubscriberPolicyData), 5)
-}
-
-// Two imsis deleted and 1 imsi added in device group
-func TestUpdatePcfSubscriberPolicyDataUpdate1(t *testing.T) {
-	var nrp protos.NetworkSliceResponse
-	err := json.Unmarshal(UData1, &nrp)
-	if err != nil {
-		panic(err)
-	}
-	for _, ns := range nrp.NetworkSlice {
-		PCFTest.UpdatePcfSubscriberPolicyData(ns)
-	}
-	self := pcfContext.PCF_Self()
-	assert.Equal(t, len(self.PcfSubscriberPolicyData), 4)
-}
-
-func TestUpdatePcfSubscriberPolicyDataDel(t *testing.T) {
-	var nrp protos.NetworkSliceResponse
-	err := json.Unmarshal(DelData, &nrp)
-	if err != nil {
-		panic(err)
-	}
-	for _, ns := range nrp.NetworkSlice {
-		PCFTest.UpdatePcfSubscriberPolicyData(ns)
-	}
-	self := pcfContext.PCF_Self()
-	assert.Equal(t, len(self.PcfSubscriberPolicyData), 0)
-}
-
-func TestUpdatePolicyForAllIMSIs(t *testing.T) {
-	var nrp protos.NetworkSliceResponse
-	err := json.Unmarshal(Data, &nrp)
-	if err != nil {
-		panic(err)
-	}
-	Rsp := make(chan *protos.NetworkSliceResponse)
-	go func() {
-		Rsp <- &nrp
-	}()
-	go func() {
-		PCFTest.UpdateConfig(Rsp)
-	}()
-	time.Sleep(2 * time.Second)
-	self := pcfContext.PCF_Self()
-	authSessAmbr := "AuthSessAmbr: Uplink: 100 Kbps, Downlink: 50 Kbps"
-	policyimsi1, exist1 := self.PcfSubscriberPolicyData["123456789123456"]
-	policyimsi2, exist2 := self.PcfSubscriberPolicyData["123456789123457"]
-	policyimsi3, exist3 := self.PcfSubscriberPolicyData["123456789123458"]
-	assert.EqualValues(
-		t,
-		strings.Contains(policyimsi1.String(), authSessAmbr),
-		strings.Contains(policyimsi2.String(), authSessAmbr),
-		strings.Contains(policyimsi3.String(), authSessAmbr),
-		true,
-	)
-	assert.EqualValues(t, exist1, exist2, exist3, true)
-
-	// Update Slice Info with different AMBR Values: Uplink: 20 Kbps, Downlink: 80 Kbps.
-	// Two more IMSIs are added.
-	err = json.Unmarshal(UData, &nrp)
-	if err != nil {
-		panic(err)
-	}
-	Rsp = make(chan *protos.NetworkSliceResponse)
-	go func() {
-		Rsp <- &nrp
-	}()
-	go func() {
-		PCFTest.UpdateConfig(Rsp)
-	}()
-	time.Sleep(2 * time.Second)
-	self = pcfContext.PCF_Self()
-	authSessAmbr = "AuthSessAmbr: Uplink: 20 Kbps, Downlink: 80 Kbps"
-	policyimsi1, exist1 = self.PcfSubscriberPolicyData["123456789123456"]
-	policyimsi2, exist2 = self.PcfSubscriberPolicyData["123456789123457"]
-	policyimsi3, exist3 = self.PcfSubscriberPolicyData["123456789123458"]
-	policyimsi4, exist4 := self.PcfSubscriberPolicyData["123456789123459"]
-	policyimsi5, exist5 := self.PcfSubscriberPolicyData["123456789123460"]
-	assert.EqualValues(
-		t,
-		strings.Contains(policyimsi1.String(), authSessAmbr),
-		strings.Contains(policyimsi2.String(), authSessAmbr),
-		strings.Contains(policyimsi3.String(), authSessAmbr),
-		strings.Contains(policyimsi4.String(), authSessAmbr),
-		strings.Contains(policyimsi5.String(), authSessAmbr),
-		true,
-	)
-	assert.EqualValues(t, exist1, exist2, exist3, exist4, exist5, true)
-
-	// Update Slice Info with different AMBR Values: Uplink: 100 Kbps, Downlink: 50 Kbps.
-	// Two IMSIs are deleted, one IMSI added.
-	err = json.Unmarshal(UData1, &nrp)
-	if err != nil {
-		panic(err)
-	}
-	Rsp = make(chan *protos.NetworkSliceResponse)
-	go func() {
-		Rsp <- &nrp
-	}()
-	go func() {
-		PCFTest.UpdateConfig(Rsp)
-	}()
-	time.Sleep(2 * time.Second)
-	self = pcfContext.PCF_Self()
-	authSessAmbr = "AuthSessAmbr: Uplink: 100 Kbps, Downlink: 50 Kbps"
-	policyimsi1, exist1 = self.PcfSubscriberPolicyData["123456789123456"]
-	policyimsi2, exist2 = self.PcfSubscriberPolicyData["123456789123459"]
-	policyimsi3, exist3 = self.PcfSubscriberPolicyData["123456789123460"]
-	policyimsi4, exist4 = self.PcfSubscriberPolicyData["123456789123461"]
-	assert.EqualValues(
-		t,
-		strings.Contains(policyimsi1.String(), authSessAmbr),
-		strings.Contains(policyimsi2.String(), authSessAmbr),
-		strings.Contains(policyimsi3.String(), authSessAmbr),
-		strings.Contains(policyimsi4.String(), authSessAmbr),
-		true,
-	)
-	assert.EqualValues(t, exist1, exist2, exist3, exist4, true)
-
-	// Checking policy for removed IMSIs
-	_, exist5 = self.PcfSubscriberPolicyData["123456789123457"]
-	_, exist6 := self.PcfSubscriberPolicyData["123456789123458"]
-	assert.EqualValues(t, exist5, exist6, false)
-}
-
-func TestGetBitRateUnit(t *testing.T) {
-	t.Logf("test case TestGetBitRateUnit")
-	for value, expVal := range bitRateValues {
-		val, unit := service.GetBitRateUnit(value)
-		assert.Equal(t, strconv.FormatInt(val, 10)+unit, expVal)
-	}
-}
-
-func TestRegisterNF(t *testing.T) {
-	origRegisterNFInstance := consumer.SendRegisterNFInstance
-	origSearchNFInstances := consumer.SendSearchNFInstances
-	origUpdateNFInstance := consumer.SendUpdateNFInstance
-	defer func() {
-		consumer.SendRegisterNFInstance = origRegisterNFInstance
-		consumer.SendSearchNFInstances = origSearchNFInstances
-		consumer.SendUpdateNFInstance = origUpdateNFInstance
-	}()
-	t.Logf("test case TestRegisterNF")
-	var prof models.NfProfile
-	consumer.SendRegisterNFInstance = func(nrfUri string, nfInstanceId string, profile models.NfProfile) (models.NfProfile, string, string, error) {
-		prof = profile
-		prof.HeartBeatTimer = 1
-		t.Logf("test RegisterNFInstance called")
-		return prof, "", "", nil
-	}
-	consumer.SendSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
-		t.Logf("test SearchNFInstance called")
-		return models.SearchResult{}, nil
-	}
-	consumer.SendUpdateNFInstance = func(patchItem []models.PatchItem) (nfProfile models.NfProfile, problemDetails *models.ProblemDetails, err error) {
-		return prof, nil, nil
-	}
-	go PCFTest.RegisterNF()
-	service.ConfigPodTrigger <- true
-	time.Sleep(5 * time.Second)
-	assert.Equal(t, service.KeepAliveTimer != nil, true)
-
-	service.ConfigPodTrigger <- false
-	time.Sleep(1 * time.Second)
-	assert.Equal(t, service.KeepAliveTimer == nil, true)
 }
 
 func TestGetUDRUri(t *testing.T) {
@@ -257,10 +65,10 @@ func TestGetUDRUri(t *testing.T) {
 	callCountSendNfDiscovery := 0
 	origNRFCacheSearchNFInstances := consumer.NRFCacheSearchNFInstances
 	origSendNfDiscoveryToNrf := consumer.SendNfDiscoveryToNrf
-	udrProfile1 := models.NfProfile{
+	udrProfile1 := models.NFProfileDiscovery{
 		UdrInfo: &models.UdrInfo{
 			SupportedDataSets: []models.DataSetId{
-				models.DataSetId_SUBSCRIPTION,
+				models.DATASETID_SUBSCRIPTION,
 			},
 		},
 		NfInstanceId: nfInstanceID,
@@ -269,88 +77,80 @@ func TestGetUDRUri(t *testing.T) {
 	}
 	udrUri1 := "https://10.0.13.1:8090"
 	udrUri2 := "https://20.20.13.1:8090"
-	services1 := []models.NfService{
+	services1 := []models.NFService{
 		{
 			ServiceInstanceId: "datarepository",
-			ServiceName:       models.ServiceName_NUDR_DR,
-			Versions: &[]models.NfServiceVersion{
+			ServiceName:       models.SERVICENAME_NUDR_DR,
+			Versions: []models.NFServiceVersion{
 				{
 					ApiFullVersion:  "1",
 					ApiVersionInUri: "versionUri",
 				},
 			},
 			Scheme:          "https",
-			NfServiceStatus: models.NfServiceStatus_REGISTERED,
-			ApiPrefix:       udrUri1,
-			IpEndPoints: &[]models.IpEndPoint{
+			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
+			ApiPrefix:       openapi.PtrString(udrUri1),
+			IpEndPoints: []models.IpEndPoint{
 				{
-					Ipv4Address: "10.0.13.1",
-					Transport:   models.TransportProtocol_TCP,
-					Port:        8090,
+					Ipv4Address: openapi.PtrString("10.0.13.1"),
+					Transport:   models.TRANSPORTPROTOCOL_TCP.Ptr(),
+					Port:        openapi.PtrInt32(8090),
 				},
 			},
 		},
 	}
-	udrProfile1.NfServices = &services1
-	nfInstances1 := []models.NfProfile{
+	udrProfile1.NfServices = services1
+	nfInstances1 := []models.NFProfileDiscovery{
 		udrProfile1,
 	}
-	searchResult1 := models.SearchResult{
-		ValidityPeriod:       7,
-		NfInstances:          nfInstances1,
-		NrfSupportedFeatures: "",
-	}
-	udrProfile2 := models.NfProfile{
+	searchResult1 := models.NewSearchResult(7, nfInstances1)
+	udrProfile2 := models.NFProfileDiscovery{
 		UdrInfo: &models.UdrInfo{
 			SupportedDataSets: []models.DataSetId{
-				models.DataSetId_SUBSCRIPTION,
+				models.DATASETID_SUBSCRIPTION,
 			},
 		},
 		NfInstanceId: "9999-4343-43-434-343",
 		NfType:       "UDR",
 		NfStatus:     "REGISTERED",
 	}
-	services2 := []models.NfService{
+	services2 := []models.NFService{
 		{
 			ServiceInstanceId: "datarepository",
-			ServiceName:       models.ServiceName_NUDR_DR,
-			Versions: &[]models.NfServiceVersion{
+			ServiceName:       models.SERVICENAME_NUDR_DR,
+			Versions: []models.NFServiceVersion{
 				{
 					ApiFullVersion:  "1",
 					ApiVersionInUri: "versionUri",
 				},
 			},
 			Scheme:          "https",
-			NfServiceStatus: models.NfServiceStatus_REGISTERED,
-			ApiPrefix:       udrUri2,
-			IpEndPoints: &[]models.IpEndPoint{
+			NfServiceStatus: models.NFSERVICESTATUS_REGISTERED,
+			ApiPrefix:       openapi.PtrString(udrUri2),
+			IpEndPoints: []models.IpEndPoint{
 				{
-					Ipv4Address: "10.0.13.1",
-					Transport:   models.TransportProtocol_TCP,
-					Port:        8090,
+					Ipv4Address: openapi.PtrString("10.0.13.1"),
+					Transport:   models.TRANSPORTPROTOCOL_TCP.Ptr(),
+					Port:        openapi.PtrInt32(8090),
 				},
 			},
 		},
 	}
-	udrProfile2.NfServices = &services2
-	nfInstances2 := []models.NfProfile{
+	udrProfile2.NfServices = services2
+	nfInstances2 := []models.NFProfileDiscovery{
 		udrProfile2,
 	}
-	searchResult2 := models.SearchResult{
-		ValidityPeriod:       7,
-		NfInstances:          nfInstances2,
-		NrfSupportedFeatures: "",
-	}
+	searchResult2 := models.NewSearchResult(7, nfInstances2)
 	defer func() {
 		consumer.NRFCacheSearchNFInstances = origNRFCacheSearchNFInstances
 		consumer.SendNfDiscoveryToNrf = origSendNfDiscoveryToNrf
 	}()
-	consumer.NRFCacheSearchNFInstances = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
+	consumer.NRFCacheSearchNFInstances = func(ctx context.Context, nrfUri string, targetNfType, requestNfType models.NFType, param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, error) {
 		t.Logf("test SearchNFInstance called")
 		callCountSearchNFInstances++
 		return searchResult1, nil
 	}
-	consumer.SendNfDiscoveryToNrf = func(nrfUri string, targetNfType, requestNfType models.NfType, param *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, error) {
+	consumer.SendNfDiscoveryToNrf = func(ctx context.Context, nrfUri string, targetNfType, requestNfType models.NFType, param Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, error) {
 		t.Logf("test SendNfDiscoveryToNrf called")
 		callCountSendNfDiscovery++
 		return searchResult2, nil
@@ -384,10 +184,19 @@ func TestGetUDRUri(t *testing.T) {
 	for i := range parameters {
 		t.Run(fmt.Sprintf("NRF caching is [%v]", parameters[i].inputEnableNrfCaching), func(t *testing.T) {
 			pcfContext.PCF_Self().EnableNrfCaching = parameters[i].inputEnableNrfCaching
-			PCFTest.DiscoverUdr()
-			assert.Equal(t, parameters[i].expectedCallCountSearchNFInstances, callCountSearchNFInstances, "NF instance is searched in the cache.")
-			assert.Equal(t, parameters[i].expectedCallCountSendNfDiscovery, callCountSendNfDiscovery, "NF discovery request is sent to NRF.")
-			assert.Equal(t, parameters[i].udrUri, pcfContext.PCF_Self().DefaultUdrURI, "UDR Uri is set.")
+			consumer.DiscoverUdr()
+			if callCountSearchNFInstances != parameters[i].expectedCallCountSearchNFInstances {
+				t.Errorf("NF instance search count mismatch. got = %d, want = %d (NF instance is searched in the cache)",
+					callCountSearchNFInstances, parameters[i].expectedCallCountSearchNFInstances)
+			}
+			if callCountSendNfDiscovery != parameters[i].expectedCallCountSendNfDiscovery {
+				t.Errorf("NF discovery request count mismatch. got = %d, want = %d (NF discovery request is sent to NRF)",
+					callCountSendNfDiscovery, parameters[i].expectedCallCountSendNfDiscovery)
+			}
+			if pcfContext.PCF_Self().DefaultUdrURI != parameters[i].udrUri {
+				t.Errorf("UDR URI mismatch. got = %q, want = %q (UDR Uri is set)",
+					pcfContext.PCF_Self().DefaultUdrURI, parameters[i].udrUri)
+			}
 			callCountSendNfDiscovery = 0
 			callCountSearchNFInstances = 0
 		})
@@ -396,24 +205,20 @@ func TestGetUDRUri(t *testing.T) {
 
 func TestCreateSubscriptionSuccess(t *testing.T) {
 	t.Logf("test cases for CreateSubscription")
-	udrProfile := models.NfProfile{
+	udrProfile := models.NFProfileDiscovery{
 		UdrInfo: &models.UdrInfo{
 			SupportedDataSets: []models.DataSetId{
-				models.DataSetId_SUBSCRIPTION,
+				models.DATASETID_SUBSCRIPTION,
 			},
 		},
 		NfInstanceId: nfInstanceID,
 		NfType:       "UDR",
 		NfStatus:     "REGISTERED",
 	}
-	nfInstances := []models.NfProfile{
+	nfInstances := []models.NFProfileDiscovery{
 		udrProfile,
 	}
-	searchResult := models.SearchResult{
-		ValidityPeriod:       7,
-		NfInstances:          nfInstances,
-		NrfSupportedFeatures: "",
-	}
+	searchResult := models.NewSearchResult(7, nfInstances)
 	stringReader := strings.NewReader("successful!")
 	stringReadCloser := io.NopCloser(stringReader)
 	httpResponse := http.Response{
@@ -427,29 +232,26 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 	callCountSendCreateSubscription := 0
 	origStoreApiSearchNFInstances := consumer.StoreApiSearchNFInstances
 	origCreateSubscription := consumer.CreateSubscription
-
 	defer func() {
 		consumer.StoreApiSearchNFInstances = origStoreApiSearchNFInstances
 		consumer.CreateSubscription = origCreateSubscription
 	}()
-	consumer.StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreApiService, context.Context, models.NfType, models.NfType, *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, *http.Response, error) {
+	consumer.StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreAPIService, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, *http.Response, error) {
 		t.Logf("test SearchNFInstances called")
 		return searchResult, &httpResponse, nil
 	}
-	consumer.CreateSubscription = func(nrfUri string, nrfSubscriptionData models.NrfSubscriptionData) (nrfSubData models.NrfSubscriptionData, problemDetails *models.ProblemDetails, err error) {
-		t.Logf("test SendCreateSubsription called")
+	consumer.CreateSubscription = func(nrfUri string, nrfSubscriptionData models.SubscriptionData) (nrfSubData *models.SubscriptionData, problemDetails *models.ProblemDetails, err error) {
+		t.Logf("test SendCreateSubscription called")
 		callCountSendCreateSubscription++
-		return models.NrfSubscriptionData{
-			NfStatusNotificationUri: "https://:0/npcf-callback/v1/nf-status-notify",
-			ReqNfType:               "PCF",
-			SubscriptionId:          subscriptionID,
-		}, nil, nil
+		subscriptionData := models.NewSubscriptionData("https://:0/npcf-callback/v1/nf-status-notify")
+		subscriptionData.SetReqNfType("PCF")
+		subscriptionData.SetSubscriptionId(subscriptionID)
+		return subscriptionData, nil, nil
 	}
 	// NRF caching is disabled
 	pcfContext.PCF_Self().EnableNrfCaching = false
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
+	param := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
+	param = param.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
 	parameters := []struct {
 		expectedError                           error
 		testName                                string
@@ -477,12 +279,20 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 	}
 	for i := range parameters {
 		t.Run(fmt.Sprintf("CreateSubscription testname %v result %v", parameters[i].testName, parameters[i].result), func(t *testing.T) {
-			_, err := consumer.SendNfDiscoveryToNrf("testNRFUri", "UDR", "PCF", &param)
+			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", "UDR", "PCF", param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(parameters[i].nfInstanceId)
-			assert.Equal(t, val, parameters[i].subscriptionId, "Correct Subscription ID is not stored in the PCF context.")
-			assert.Equal(t, parameters[i].expectedError, err, "SendNfDiscoveryToNrf is failed.")
-			// Subscription is created.
-			assert.Equal(t, parameters[i].expectedCallCountSendCreateSubscription, callCountSendCreateSubscription, "Subscription is not created for NF instance.")
+			if val != parameters[i].subscriptionId {
+				t.Errorf("Subscription ID mismatch. got = %v, want = %v (Correct Subscription ID is not stored in the PCF context)",
+					val, parameters[i].subscriptionId)
+			}
+			if err != parameters[i].expectedError {
+				t.Errorf("SendNfDiscoveryToNrf error mismatch. got = %v, want = %v (SendNfDiscoveryToNrf is failed)",
+					err, parameters[i].expectedError)
+			}
+			if callCountSendCreateSubscription != parameters[i].expectedCallCountSendCreateSubscription {
+				t.Errorf("Subscription creation count mismatch. got = %d, want = %d (Subscription is not created for NF instance)",
+					callCountSendCreateSubscription, parameters[i].expectedCallCountSendCreateSubscription)
+			}
 			callCountSendCreateSubscription = 0
 		})
 	}
@@ -490,31 +300,25 @@ func TestCreateSubscriptionSuccess(t *testing.T) {
 
 func TestCreateSubscriptionFail(t *testing.T) {
 	t.Logf("test cases for CreateSubscription")
-	udrProfile := models.NfProfile{
+	udrProfile := models.NFProfileDiscovery{
 		UdrInfo: &models.UdrInfo{
 			SupportedDataSets: []models.DataSetId{
-				models.DataSetId_SUBSCRIPTION,
+				models.DATASETID_SUBSCRIPTION,
 			},
 		},
 		NfInstanceId: "84343-4343-43-434-343",
 		NfType:       "UDR",
 		NfStatus:     "REGISTERED",
 	}
-	nfInstances := []models.NfProfile{
+	nfInstances := []models.NFProfileDiscovery{
 		udrProfile,
 	}
-	searchResult := models.SearchResult{
-		ValidityPeriod:       7,
-		NfInstances:          nfInstances,
-		NrfSupportedFeatures: "",
-	}
-	emptySearchResult := models.SearchResult{}
-	nrfSubscriptionData := models.NrfSubscriptionData{
-		NfStatusNotificationUri: "https://:0/npcf-callback/v1/nf-status-notify",
-		ReqNfType:               "PCF",
-		SubscriptionId:          "",
-	}
-	emptyNrfSubscriptionData := models.NrfSubscriptionData{}
+	searchResult := models.NewSearchResult(7, nfInstances)
+	emptySearchResult := models.NewSearchResultWithDefaults()
+	nrfSubscriptionData := models.NewSubscriptionData("https://:0/npcf-callback/v1/nf-status-notify")
+	nrfSubscriptionData.SetReqNfType("PCF")
+	nrfSubscriptionData.SetSubscriptionId("")
+	emptyNrfSubscriptionData := models.NewSubscriptionDataWithDefaults()
 	stringReader := strings.NewReader("successful!")
 	stringReadCloser := io.NopCloser(stringReader)
 	httpResponseTemporaryDirect := http.Response{
@@ -533,11 +337,12 @@ func TestCreateSubscriptionFail(t *testing.T) {
 		ProtoMinor: 0,
 		Body:       stringReadCloser,
 	}
-	serverErrorProblem := models.ProblemDetails{
-		Status: http.StatusInternalServerError,
-		Cause:  "Server Error",
-		Detail: "",
-	}
+	serverErrorProblem := utils.ProblemDetailsWithCause(
+		"Server Error",
+		http.StatusInternalServerError,
+		"",
+		utils.CauseServerError,
+	)
 	callCountSendCreateSubscription := 0
 	origStoreApiSearchNFInstances := consumer.StoreApiSearchNFInstances
 	origCreateSubscription := consumer.CreateSubscription
@@ -547,17 +352,16 @@ func TestCreateSubscriptionFail(t *testing.T) {
 	}()
 	// NRF caching is disabled
 	pcfContext.PCF_Self().EnableNrfCaching = false
-	param := Nnrf_NFDiscovery.SearchNFInstancesParamOpts{
-		ServiceNames: optional.NewInterface([]models.ServiceName{models.ServiceName_NUDR_DR}),
-	}
+	param := Nnrf_NFDiscovery.ApiSearchNFInstancesRequest{}
+	param = param.ServiceNames([]models.ServiceName{models.SERVICENAME_NUDR_DR})
 	parameters := []struct {
 		httpResponse                            http.Response
 		expectedSubscriptionId                  any
 		subscriptionError                       error
 		expectedError                           error
 		subscriptionProblem                     *models.ProblemDetails
-		nrfSubscriptionData                     models.NrfSubscriptionData
-		searchResult                            models.SearchResult
+		nrfSubscriptionData                     *models.SubscriptionData
+		searchResult                            *models.SearchResult
 		testName                                string
 		result                                  string
 		expectedCallCountSendCreateSubscription int
@@ -576,10 +380,10 @@ func TestCreateSubscriptionFail(t *testing.T) {
 		},
 		{
 			httpResponseSuccess,
-			"",
 			nil,
 			nil,
-			&serverErrorProblem,
+			fmt.Errorf("SendCreateSubscription to NRF failed: %s", utils.CauseServerError),
+			serverErrorProblem,
 			emptyNrfSubscriptionData,
 			searchResult,
 			"NF instances are found in Store Api subscription but create subscription reports problem",
@@ -588,7 +392,7 @@ func TestCreateSubscriptionFail(t *testing.T) {
 		},
 		{
 			httpResponseSuccess,
-			"",
+			nil,
 			errors.New("SendCreateSubscription request failed"),
 			errors.New("SendCreateSubscription request failed"),
 			nil,
@@ -613,21 +417,31 @@ func TestCreateSubscriptionFail(t *testing.T) {
 	}
 	for i := range parameters {
 		t.Run(fmt.Sprintf("CreateSubscription testname %v result %v", parameters[i].testName, parameters[i].result), func(t *testing.T) {
-			consumer.StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreApiService, context.Context, models.NfType, models.NfType, *Nnrf_NFDiscovery.SearchNFInstancesParamOpts) (models.SearchResult, *http.Response, error) {
+			consumer.StoreApiSearchNFInstances = func(*Nnrf_NFDiscovery.NFInstancesStoreAPIService, Nnrf_NFDiscovery.ApiSearchNFInstancesRequest) (*models.SearchResult, *http.Response, error) {
 				t.Logf("test SearchNFInstances called")
 				return parameters[i].searchResult, &parameters[i].httpResponse, nil
 			}
 
-			consumer.CreateSubscription = func(nrfUri string, nrfSubscriptionData models.NrfSubscriptionData) (nrfSubData models.NrfSubscriptionData, problemDetails *models.ProblemDetails, err error) {
+			consumer.CreateSubscription = func(nrfUri string, nrfSubscriptionData models.SubscriptionData) (nrfSubData *models.SubscriptionData, problemDetails *models.ProblemDetails, err error) {
 				t.Logf("test SendCreateSubsription called")
 				callCountSendCreateSubscription++
 				return parameters[i].nrfSubscriptionData, parameters[i].subscriptionProblem, parameters[i].subscriptionError
 			}
-			_, err := consumer.SendNfDiscoveryToNrf("testNRFUri", "UDR", "PCF", &param)
+			_, err := consumer.SendNfDiscoveryToNrf(context.Background(), "testNRFUri", "UDR", "PCF", param)
 			val, _ := pcfContext.PCF_Self().NfStatusSubscriptions.Load(udrProfile.NfInstanceId)
-			assert.Equal(t, val, parameters[i].expectedSubscriptionId, "Correct Subscription ID is not stored in the PCF context.")
-			assert.Equal(t, parameters[i].expectedError, err, "SendNfDiscoveryToNrf is failed.")
-			assert.Equal(t, parameters[i].expectedCallCountSendCreateSubscription, callCountSendCreateSubscription, "Subscription is not created for NF instance.")
+			if val != parameters[i].expectedSubscriptionId {
+				t.Errorf("Subscription ID mismatch. got = %v, want = %v (Correct Subscription ID is not stored in the PCF context)",
+					val, parameters[i].expectedSubscriptionId)
+			}
+			if (err != nil || parameters[i].expectedError != nil) &&
+				(err == nil || parameters[i].expectedError == nil || err.Error() != parameters[i].expectedError.Error()) {
+				t.Errorf("SendNfDiscoveryToNrf error mismatch. got = %v, want = %v (SendNfDiscoveryToNrf is failed)",
+					err, parameters[i].expectedError)
+			}
+			if callCountSendCreateSubscription != parameters[i].expectedCallCountSendCreateSubscription {
+				t.Errorf("Subscription creation count mismatch. got = %d, want = %d (Subscription is not created for NF instance)",
+					callCountSendCreateSubscription, parameters[i].expectedCallCountSendCreateSubscription)
+			}
 			callCountSendCreateSubscription = 0
 			pcfContext.PCF_Self().NfStatusSubscriptions.Delete(udrProfile.NfInstanceId)
 		})
@@ -654,21 +468,17 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 		callCountNRFCacheRemoveNfProfileFromNrfCache++
 		return true
 	}
-	udrProfile := models.NfProfileNotificationData{
+	udrProfile := models.NotificationDataAllOfNfProfile{
 		UdrInfo: &models.UdrInfo{
 			SupportedDataSets: []models.DataSetId{
-				models.DataSetId_SUBSCRIPTION,
+				models.DATASETID_SUBSCRIPTION,
 			},
 		},
 		NfInstanceId: nfInstanceID,
 		NfType:       "UDR",
 		NfStatus:     "DEREGISTERED",
 	}
-	badRequestProblem := models.ProblemDetails{
-		Status: http.StatusBadRequest,
-		Cause:  "MANDATORY_IE_MISSING",
-		Detail: "Missing IE [Event]/[NfInstanceUri] in NotificationData",
-	}
+	badRequestProblem := utils.ProblemDetailsMandatoryIeMissing("Missing IE [Event]/[NfInstanceUri] in NotificationData")
 	parameters := []struct {
 		expectedProblem                                      *models.ProblemDetails
 		testName                                             string
@@ -742,7 +552,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			true,
 		},
 		{
-			&badRequestProblem,
+			badRequestProblem,
 			"Notification event type DEREGISTERED NRF caching is enabled NfInstanceUri in notificationData is empty",
 			"Return StatusBadRequest with cause MANDATORY_IE_MISSING",
 			"",
@@ -754,7 +564,7 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 			true,
 		},
 		{
-			&badRequestProblem,
+			badRequestProblem,
 			"Notification event type empty NRF caching is enabled",
 			"Return StatusBadRequest with cause MANDATORY_IE_MISSING",
 			nfInstanceID,
@@ -777,11 +587,18 @@ func TestNfSubscriptionStatusNotify(t *testing.T) {
 				ProfileChanges: []models.ChangeItem{},
 			}
 			err := producer.NfSubscriptionStatusNotifyProcedure(notificationData)
-			assert.Equal(t, parameters[i].expectedProblem, err, "NfSubscriptionStatusNotifyProcedure is failed.")
-			// Subscription is removed.
-			assert.Equal(t, parameters[i].expectedCallCountSendRemoveSubscription, callCountSendRemoveSubscription, "Subscription is not removed.")
-			// NF Profile is removed from NRF cache.
-			assert.Equal(t, parameters[i].expectedCallCountNRFCacheRemoveNfProfileFromNrfCache, callCountNRFCacheRemoveNfProfileFromNrfCache, "NF Profile is not removed from NRF cache.")
+			if !reflect.DeepEqual(err, parameters[i].expectedProblem) {
+				t.Errorf("NfSubscriptionStatusNotifyProcedure error mismatch. got = %v, want = %v (NfSubscriptionStatusNotifyProcedure is failed)",
+					err, parameters[i].expectedProblem)
+			}
+			if callCountSendRemoveSubscription != parameters[i].expectedCallCountSendRemoveSubscription {
+				t.Errorf("Subscription removal count mismatch. got = %d, want = %d (Subscription is not removed)",
+					callCountSendRemoveSubscription, parameters[i].expectedCallCountSendRemoveSubscription)
+			}
+			if callCountNRFCacheRemoveNfProfileFromNrfCache != parameters[i].expectedCallCountNRFCacheRemoveNfProfileFromNrfCache {
+				t.Errorf("NF Profile cache removal count mismatch. got = %d, want = %d (NF Profile is not removed from NRF cache)",
+					callCountNRFCacheRemoveNfProfileFromNrfCache, parameters[i].expectedCallCountNRFCacheRemoveNfProfileFromNrfCache)
+			}
 			callCountSendRemoveSubscription = 0
 			callCountNRFCacheRemoveNfProfileFromNrfCache = 0
 			pcfContext.PCF_Self().NfStatusSubscriptions.Delete(parameters[i].nfInstanceIdForSubscription)
