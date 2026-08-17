@@ -22,8 +22,6 @@ package bdtpolicy
 import (
 	"net/http"
 
-	"github.com/5GC-DEV/openapi-cdac"
-	"github.com/5GC-DEV/openapi-cdac/models"
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/openapi/v2"
 	"github.com/omec-project/openapi/v2/models"

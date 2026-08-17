@@ -72,9 +72,6 @@ func RegisterNotifyDispatcher() error {
 	if err := notifyDispatcher.Register(NotifyListener{}, SendSMpolicyUpdateNotifyEventName); err != nil {
 		return err
 	}
-	logger.NotifyEventLog.Debugf("Event handlers registered: %s, %s",
-		SendSMpolicyUpdateNotifyEventName,
-		SendSMpolicyTerminationNotifyEventName)
 	return nil
 }
 
@@ -94,14 +91,10 @@ func DispatchSendSMPolicyUpdateNotifyEvent(uri string, request *models.SmPolicyN
 		logger.NotifyEventLog.Errorf("notifyDispatcher is nil")
 		return
 	}
-
-	logger.NotifyEventLog.Debugf("Sending SM Policy Update Notify Event to dispatcher")
-
 	err := notifyDispatcher.Dispatch(SendSMpolicyUpdateNotifyEventName, SendSMpolicyUpdateNotifyEvent{
 		uri:     uri,
 		request: request,
 	})
-
 	if err != nil {
 		logger.NotifyEventLog.Errorln(err)
 	}

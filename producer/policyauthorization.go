@@ -1671,7 +1671,7 @@ func getFlowInfos(comp models.MediaComponent) (flows []models.FlowInformation, e
 		}
 	}
 	return maxID
-}
+}*/
 
 func getFlowInfos(subComp *models.MediaSubComponent) ([]models.FlowInformation, error) {
 	var flows []models.FlowInformation
