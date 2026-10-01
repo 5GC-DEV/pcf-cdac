@@ -13,12 +13,12 @@ import (
 
 	"github.com/5GC-DEV/openapi-cdac"
 	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/mohae/deepcopy"
 	"github.com/omec-project/pcf/consumer"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 func HandleDeletePoliciesPolAssoId(request *httpwrapper.Request) *httpwrapper.Response {

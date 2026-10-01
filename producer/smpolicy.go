@@ -16,13 +16,13 @@ import (
 	"github.com/5GC-DEV/openapi-cdac"
 	"github.com/5GC-DEV/openapi-cdac/Nudr_DataRepository"
 	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 // SmPoliciesPost -

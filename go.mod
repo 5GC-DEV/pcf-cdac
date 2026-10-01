@@ -5,14 +5,13 @@ go 1.24.0
 require (
 	github.com/5GC-DEV/config5g-cdac v0.2.1
 	github.com/5GC-DEV/event v0.0.0-20250920143456-3d7f9c51c82a
-	github.com/5GC-DEV/openapi-cdac v1.0.1-0.20260701094837-fcfd9c9aecfe
+	github.com/5GC-DEV/openapi-cdac v0.4.3
 	github.com/antihax/optional v1.0.0
 	github.com/cydev/zero v0.0.0-20160322155811-4a4535dd56e7
 	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
-	github.com/omec-project/util v1.3.2
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v3 v3.3.8
@@ -21,6 +20,7 @@ require (
 )
 
 require (
+	github.com/5GC-DEV/util-cdac v0.4.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.13.3 // indirect

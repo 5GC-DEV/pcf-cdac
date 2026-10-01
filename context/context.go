@@ -16,9 +16,9 @@ import (
 
 	"github.com/5GC-DEV/openapi-cdac"
 	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/5GC-DEV/util-cdac/idgenerator"
 	"github.com/omec-project/pcf/factory"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/idgenerator"
 	"go.uber.org/zap"
 )
 
