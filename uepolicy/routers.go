@@ -18,9 +18,10 @@ import (
 	"net/http"
 	"strings"
 
+	utilLogger "github.com/5GC-DEV/util-cdac/logger"
+	"github.com/5GC-DEV/util-cdac/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/omec-project/pcf/logger"
-	utilLogger "github.com/omec-project/util/logger"
 )
 
 type Route struct {
@@ -38,6 +39,7 @@ type Routes []Route
 
 func NewRouter() *gin.Engine {
 	router := utilLogger.NewGinWithZap(logger.GinLog)
+	router.Use(middleware.IdempotencyMiddleware())
 	AddService(router)
 	return router
 }

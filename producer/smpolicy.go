@@ -16,19 +16,20 @@ import (
 	"github.com/5GC-DEV/openapi-cdac"
 	"github.com/5GC-DEV/openapi-cdac/Nudr_DataRepository"
 	"github.com/5GC-DEV/openapi-cdac/models"
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/antihax/optional"
 	"github.com/mohae/deepcopy"
 	pcf_context "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
 	stats "github.com/omec-project/pcf/metrics"
 	"github.com/omec-project/pcf/util"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 // SmPoliciesPost -
 func HandleCreateSmPolicyRequest(request *httpwrapper.Request) *httpwrapper.Response {
 	logger.SMpolicylog.Infoln("handle CreateSmPolicy")
 	requestDataType := request.Body.(models.SmPolicyContextData)
+	logger.SMpolicylog.Infoln("handle CreateSmPolicy Supi[%s]", requestDataType.Supi)
 	header, response, problemDetails := createSMPolicyProcedure(requestDataType)
 	if response != nil {
 		stats.IncrementPcfSmPolicyStats("create", requestDataType.Dnn, "SUCCESS")
@@ -47,7 +48,7 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 	header http.Header, response *models.SmPolicyDecision, problemDetails *models.ProblemDetails,
 ) {
 	var err error
-	logger.SMpolicylog.Debugln("handle Create SM Policy Request")
+	logger.SMpolicylog.Debugln("handle Create SM Policy Request Supi[%s]", request.Supi)
 
 	if request.Supi == "" || request.SliceInfo == nil || len(request.SliceInfo.Sd) != 6 {
 		problemDetail := util.GetProblemDetail("Errorneous/Missing Mandotory IE", util.ERROR_INITIAL_PARAMETERS)
@@ -72,10 +73,14 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		logger.SMpolicylog.Warnf("can not find corresponding UDR with UE[%s]", ue.Supi)
 		return nil, nil, &problemDetail
 	}
+	logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 	var smData models.SmPolicyData
 	smPolicyID := fmt.Sprintf("%s-%d", ue.Supi, request.PduSessionId)
+	logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 	smPolicyData := ue.SmPolicyData[smPolicyID]
+	logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 	if smPolicyData == nil || smPolicyData.SmPolicyData == nil {
+		logger.SMpolicylog.Debugln("TEST Log Request Supi[%s]", request.Supi)
 		client := util.GetNudrClient(udrUri)
 		param := Nudr_DataRepository.PolicyDataUesUeIdSmDataGetParamOpts{
 			Snssai: optional.NewInterface(util.MarshToJsonString(*request.SliceInfo)),
@@ -83,6 +88,13 @@ func createSMPolicyProcedure(request models.SmPolicyContextData) (
 		}
 		var response *http.Response
 		smData, response, err = client.DefaultApi.PolicyDataUesUeIdSmDataGet(context.Background(), ue.Supi, &param)
+		logger.SMpolicylog.Infof(
+			"Retrieved SM Data UE=%s DNN=%s Slice=%+v smData=%+v",
+			ue.Supi,
+			request.Dnn,
+			request.SliceInfo,
+			smData,
+		)
 		if err != nil || response == nil || response.StatusCode != http.StatusOK {
 			problemDetail := util.GetProblemDetail("Can't find UE SM Policy Data in UDR", util.USER_UNKNOWN)
 			logger.SMpolicylog.Warnf("can not find UE[%s] SM Policy Data in UDR", ue.Supi)

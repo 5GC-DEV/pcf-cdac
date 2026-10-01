@@ -11,10 +11,10 @@ import (
 
 	"github.com/5GC-DEV/openapi-cdac/models"
 	nrfCache "github.com/5GC-DEV/openapi-cdac/nrfcache"
+	"github.com/5GC-DEV/util-cdac/httpwrapper"
 	"github.com/omec-project/pcf/consumer"
 	pcfContext "github.com/omec-project/pcf/context"
 	"github.com/omec-project/pcf/logger"
-	"github.com/omec-project/util/httpwrapper"
 )
 
 var (
