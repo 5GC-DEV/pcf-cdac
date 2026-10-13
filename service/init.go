@@ -29,6 +29,7 @@ import (
 	nrfCache "github.com/5GC-DEV/openapi-cdac/nrfcache"
 	"github.com/antihax/optional"
 	"github.com/gin-contrib/cors"
+	"github.com/mohae/deepcopy"
 	"github.com/omec-project/pcf/ampolicy"
 	"github.com/omec-project/pcf/bdtpolicy"
 	"github.com/omec-project/pcf/callback"
@@ -616,10 +617,35 @@ func getPccRules(slice *protos.NetworkSlice, sessionRule *models.SessionRule) (p
 					qos.Arp.PreemptVuln = models.PreemptionVulnerability_PREEMPTABLE
 				}
 			}
-			if pccrule.Qos.MaxbrUl == 0 && pccrule.Qos.MaxbrDl == 0 && pccrule.Qos.GbrUl == 0 && pccrule.Qos.GbrDl == 0 {
-				// getting from sessionrule
-				qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
-				qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
+			if pccrule.Qos.MaxbrUl == 0 &&
+				pccrule.Qos.MaxbrDl == 0 &&
+				pccrule.Qos.GbrUl == 0 &&
+				pccrule.Qos.GbrDl == 0 {
+				// Apply Session AMBR only for matching 5QI
+				if sessionRule.AuthDefQos != nil &&
+					qos.Var5qi == sessionRule.AuthDefQos.Var5qi {
+					logger.GrpcLog.Debugf(
+						"Applying SessionRule AMBR to matching QosData "+
+							"5QI[%d], UL[%s], DL[%s]",
+						qos.Var5qi,
+						sessionRule.AuthSessAmbr.Uplink,
+						sessionRule.AuthSessAmbr.Downlink,
+					)
+					qos.MaxbrUl = sessionRule.AuthSessAmbr.Uplink
+					qos.MaxbrDl = sessionRule.AuthSessAmbr.Downlink
+				} else {
+					logger.GrpcLog.Debugf(
+						"Skipping SessionRule AMBR assignment for QosData 5QI[%d], "+
+							"SessionRule5QI[%d]",
+						qos.Var5qi,
+						func() int32 {
+							if sessionRule.AuthDefQos != nil {
+								return sessionRule.AuthDefQos.Var5qi
+							}
+							return -1
+						}(),
+					)
+				}
 			}
 			//rule.RefQosData = append(rule.RefQosData, qos.QosId)
 			//if pccPolicy.QosDecs == nil {
@@ -754,19 +780,97 @@ func (pcf *PCF) CreatePolicyDataforImsi(imsi string, sliceid string, dnn string,
 	sessionrule.SessRuleId = dnn + "-" + strconv.Itoa(int(id))
 	policyData.PccPolicy[sliceid].SessionPolicy[dnn].SessionRules[sessionrule.SessRuleId] = sessionrule
 	logger.GrpcLog.Infof("Added new SessionRule [%s] for DNN: %s in Slice: %s, IMSI: %s", sessionrule.SessRuleId, dnn, sliceid, imsi)
-
 	// Get the PCC rules for the slice and session rule
 	pccPolicy := getPccRules(slice, sessionrule)
-
-	// Store the retrieved PCC rules
-	for index, element := range pccPolicy.PccRules {
-		policyData.PccPolicy[sliceid].PccRules[index] = element
+	// Debug generated QoS data before storing
+	for key, qosData := range pccPolicy.QosDecs {
+		logger.GrpcLog.Debugf(
+			"[BEFORE STORE] Generated QosDecs Key[%s] -> "+
+				"Pointer[%p], "+
+				"QosId[%s], "+
+				"5QI[%d], "+
+				"MaxBrUl[%s], "+
+				"MaxBrDl[%s], "+
+				"GbrUl[%s], "+
+				"GbrDl[%s], "+
+				"PriorityLevel[%d], "+
+				"ARP[%+v]",
+			key,
+			qosData,
+			qosData.QosId,
+			qosData.Var5qi,
+			qosData.MaxbrUl,
+			qosData.MaxbrDl,
+			qosData.GbrUl,
+			qosData.GbrDl,
+			qosData.PriorityLevel,
+			qosData.Arp,
+		)
 	}
+	// Store PCC Rules using deep copy
+	for index, element := range pccPolicy.PccRules {
+		if copiedPccRule, ok := deepcopy.Copy(element).(*models.PccRule); ok {
+			policyData.PccPolicy[sliceid].PccRules[index] = copiedPccRule
+			logger.GrpcLog.Debugf(
+				"[STORE] PccRule[%s] stored successfully Pointer[%p]",
+				index,
+				copiedPccRule,
+			)
+		} else {
+			logger.GrpcLog.Warnf("Failed to deepcopy PccRule[%s]", index)
+		}
+	}
+	// Store QosDecs using deep copy
 	for index, element := range pccPolicy.QosDecs {
-		policyData.PccPolicy[sliceid].QosDecs[index] = element
+		if copiedQosData, ok := deepcopy.Copy(element).(*models.QosData); ok {
+			policyData.PccPolicy[sliceid].QosDecs[index] = copiedQosData
+			logger.GrpcLog.Debugf(
+				"[STORE] QosDecs[%s] -> "+
+					"Pointer[%p], "+
+					"QosId[%s], "+
+					"5QI[%d], "+
+					"MaxBrUl[%s], "+
+					"MaxBrDl[%s], "+
+					"ARP[%+v]",
+				index,
+				copiedQosData,
+				copiedQosData.QosId,
+				copiedQosData.Var5qi,
+				copiedQosData.MaxbrUl,
+				copiedQosData.MaxbrDl,
+				copiedQosData.Arp,
+			)
+		} else {
+			logger.GrpcLog.Warnf("Failed to deepcopy QosDecs[%s]", index)
+		}
 	}
 	for index, element := range pccPolicy.TraffContDecs {
 		policyData.PccPolicy[sliceid].TraffContDecs[index] = element
+	}
+	// Final verification after storing
+	for key, qosData := range policyData.PccPolicy[sliceid].QosDecs {
+		logger.GrpcLog.Debugf(
+			"[AFTER STORE] Final QosDecs Key[%s] -> "+
+				"Pointer[%p], "+
+				"QosId[%s], "+
+				"5QI[%d], "+
+				"MaxBrUl[%s], "+
+				"MaxBrDl[%s], "+
+				"GbrUl[%s], "+
+				"GbrDl[%s], "+
+				"PriorityLevel[%d], "+
+				"ARP[%+v]",
+			key,
+			qosData,
+			qosData.QosId,
+			qosData.Var5qi,
+			qosData.MaxbrUl,
+			qosData.MaxbrDl,
+			qosData.GbrUl,
+			qosData.GbrDl,
+			qosData.PriorityLevel,
+			qosData.Arp,
+		)
 	}
 	// Log the policy data for the IMSI
 	policyData.CtxLog.Infof("Policy Data: %v for IMSI: %v", policyData, imsi)
@@ -779,13 +883,11 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 	switch slice.OperationType {
 	case protos.OpType_SLICE_ADD:
 		logger.GrpcLog.Infoln("Received Slice with OperationType: Add from ConfigPod")
-
 		for _, devgroup := range slice.DeviceGroup {
 			if len(devgroup.IpDomainDetails) == 0 {
 				logger.GrpcLog.Warnf("No IP domain details for device group: %v", devgroup.Name)
 				continue
 			}
-
 			// Get session rules for all DNNs in this device group
 			sessionRules := getSessionRules(devgroup)
 
@@ -794,16 +896,13 @@ func (pcf *PCF) UpdatePcfSubscriberPolicyData(slice *protos.NetworkSlice) {
 					logger.GrpcLog.Warnf("IP details or QoS details not available in IP domain for device group: %v", devgroup.Name)
 					continue
 				}
-
 				dnn := ipDomain.DnnName
-
 				// Extract the specific session rule for this DNN
 				sessionrule, exists := sessionRules[dnn]
 				if !exists {
 					logger.GrpcLog.Warnf("No session rule found for DNN: %v in device group: %v", dnn, devgroup.Name)
 					continue
 				}
-
 				for _, imsi := range devgroup.Imsi {
 					logger.GrpcLog.Infof("IMSI: %v sliceid: %v DNN: %v Sessionrule: %v slice: %v", imsi, sliceid, dnn, sessionrule, slice)
 					pcf.CreatePolicyDataforImsi(imsi, sliceid, dnn, sessionrule, slice)
